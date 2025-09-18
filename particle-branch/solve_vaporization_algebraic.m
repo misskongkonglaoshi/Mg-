@@ -1319,7 +1319,7 @@ function F = equations_system(X, env)
  
     %F(30) = relaxation * (Y_Mg_region0_surf+Y_CO_region0_surf - 1) * 20;  
     F(30) = relaxation * (Y_Mg_core + Y_CO_core - 1) *10; % 原来是F(34)
-    F(31) = relaxation * (Y_Mg_frac0_cal- Y_Mg_frac0)*15 ;
+    F(31) = relaxation * (Y_Mg_frac0_cal- Y_Mg_frac0)*20 ;
     F(32) = relaxation * (Y_CO_frac0_cal- Y_CO_frac0)*15 ;
     
             
