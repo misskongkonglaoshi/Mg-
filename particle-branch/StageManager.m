@@ -381,7 +381,7 @@ classdef StageManager < handle
                     'heat_radiation', [], ...
                     'heat_reaction', [], ...
                     'heat_total', []);
-            end
+        end
         end
         
         function results = prepareResults(obj)
@@ -465,7 +465,7 @@ classdef StageManager < handle
                 results.heat_reaction_surface = interp1(obj.heat_history.time, obj.heat_history.reaction_surface, results.time, 'linear', 'extrap');
                 results.heat_total = interp1(obj.heat_history.time, obj.heat_history.total, results.time, 'linear', 'extrap');
             end
-            
+
             % 计算变化率数据
             % 对于气相燃烧阶段，从vaporization_rate_info_cache中获取变化率
             if ~isempty(obj.vaporization_rate_info_cache) && strcmp(results.stage{end}, 'vaporization')
@@ -485,8 +485,8 @@ classdef StageManager < handle
                                 results.dmdt_mg(idx) = rate_info.dmdt_mg * 1e6;  % 转为μg/s
                                 results.dmdt_mgo(idx) = rate_info.dmdt_mgo * 1e6;
                                 results.dmdt_c(idx) = rate_info.dmdt_c * 1e6;
-                            end
-                        end
+            end
+        end
                     end
                 end
             end
@@ -634,6 +634,21 @@ function visualize_combustion_process(results)
     % 整体标题
     sgtitle('颗粒燃烧过程综合分析', 'FontSize', 14, 'FontWeight', 'bold');
     
+    % 保存图像文件，使用初始直径作为文件名
+    d0_um = results.radius(1) * 2 * 1e6;  % 初始直径，单位为μm
+    
+    % 确保results文件夹存在
+    resultDir = 'result';
+    if ~exist(resultDir, 'dir')
+        mkdir(resultDir);
+    end
+    
+    % 保存综合分析图
+    fileName = sprintf('%.1fμm_燃烧过程综合分析.png', d0_um);
+    fullPath = fullfile(resultDir, fileName);
+    saveas(gcf, fullPath);
+    fprintf('燃烧过程综合分析结果已保存为: %s\n', fullPath);
+    
     % 新增: 创建阶段时间统计图
     if isfield(results, 'stage_times')
         figure('Name', '各物理阶段时间统计', 'Position', [100, 500, 800, 400]);
@@ -673,6 +688,12 @@ function visualize_combustion_process(results)
                                     classified_time_ms/total_time_ms*100)}, ...
                   'FitBoxToText', 'on', 'BackgroundColor', 'white', ...
                   'EdgeColor', 'black', 'FontWeight', 'bold');
+        
+        % 保存阶段时间统计图
+        fileName = sprintf('%.1fμm_阶段时间统计.png', d0_um);
+        fullPath = fullfile(resultDir, fileName);
+        saveas(gcf, fullPath);
+        fprintf('阶段时间统计图已保存为: %s\n', fullPath);
     end
     
     % 在visualize_combustion_process中添加氧化层破裂可视化
@@ -699,6 +720,12 @@ function visualize_combustion_process(results)
             title('氧化层破裂历史 (仅加热阶段)');
             grid on;
             legend('温度', '应力');
+            
+            % 保存氧化层破裂历史图
+            fileName = sprintf('%.1fμm_氧化层破裂历史.png', d0_um);
+            fullPath = fullfile(resultDir, fileName);
+            saveas(gcf, fullPath);
+            fprintf('氧化层破裂历史图已保存为: %s\n', fullPath);
         end
     end
 end

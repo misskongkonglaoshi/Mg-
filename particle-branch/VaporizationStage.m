@@ -56,11 +56,11 @@ classdef VaporizationStage < handle
                 h_conv = obj.params.k_gas ;
                 q_conv = h_conv / pState.r_p * (obj.params.ambient_temperature - pState.T_p);
                 q_conv = 0 ;
-                rate_info.heat_convection = q_conv * (4 * pi * pState.r_p^2* porosity);
+                rate_info.heat_convection = q_conv * (4 * pi * pState.r_p^2 * porosity);
                 
                 % 2. 辐射换热
                 q_rad = obj.params.emissivity * obj.params.sigma * (obj.params.ambient_temperature^4 - pState.T_p^4);
-                rate_info.heat_radiation = q_rad * (4 * pi * pState.r_p^2*porosity);
+                rate_info.heat_radiation = q_rad * (4 * pi * pState.r_p^2 * porosity);
                 
                 % 3. 反应热 (基于Mg消耗率)
                 if isfield(rate_info, 'dmdt_mg') && rate_info.dmdt_mg < 0

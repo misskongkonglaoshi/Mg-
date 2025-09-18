@@ -366,10 +366,18 @@ classdef VaporizationODE < handle
                     % 在求解完成时保存可视化结果
                     if obj.visualize_realtime && ishandle(obj.realtime_fig)
                         % 获取颗粒初始直径(μm)，而不是当前直径
-                        d0_um = obj.params.initial_diameter * 2 * 1e6;
-                        filename = sprintf('%.1fμm_气相燃烧结果.png', d0_um);
-                        saveas(obj.realtime_fig, filename);
-                        fprintf('实时可视化结果已保存为: %s\n', filename);
+                        d0_um = obj.params.initial_diameter  * 1e6;
+                        
+                        % 确保results文件夹存在
+                        resultDir = 'result';
+                        if ~exist(resultDir, 'dir')
+                            mkdir(resultDir);
+                        end
+                        
+                        fileName = sprintf('%.1fμm_气相燃烧结果.png', d0_um);
+                        fullPath = fullfile(resultDir, fileName);
+                        saveas(obj.realtime_fig, fullPath);
+                        fprintf('实时可视化结果已保存为: %s\n', fullPath);
                     end
             end
         end
