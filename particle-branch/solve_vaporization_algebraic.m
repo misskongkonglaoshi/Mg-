@@ -24,16 +24,15 @@ function rate_info = solve_vaporization_algebraic(bvp_deps, alpha_CO, alpha_MgO,
         % 气体导热系数估计值 [W/(m·K)]
         cp_gas = params.cp_gas;
         k_gas = params.k_gas;
+        k_solid = params.k_solid;
+        %k_ox = k_gas* porosity + (1-porosity) * k_solid;
+        k_ox = k_gas * porosity ;
+        k_ox_gas = k_gas * porosity;
         le = cp_gas / k_gas * rho_D_gas ;
-        fprintf('  > le_gas: = %.6e\n', le);
-        D_eff = rho_D_gas * porosity / tortuosity;
-        D_eff = rho_D_gas* porosity / tortuosity / porosity ;
-        % D_ox_gas   k_ox_gas = porosity * k   k 总的or气的？
-        D_ox_gas = D_eff *porosity * 5 ;
+        D_ox_gas = rho_D_gas * porosity / tortuosity;
         ratio_k_cp_ox = D_ox_gas ;
-        %D_ox_gas = D_eff ;
-        fprintf('  > D_eff: = %.6e\n', D_eff);
-        % 特征量
+        ratio_k_cp_gas = rho_D_gas;
+
         r_p = pState.r_p;            % 颗粒半径（氧化层外表面）
         r_c = pState.r_c;            % 核心半径（金属核心表面）
         T_p = pState.T_p;            % 氧化层表面温度
@@ -41,8 +40,7 @@ function rate_info = solve_vaporization_algebraic(bvp_deps, alpha_CO, alpha_MgO,
         T_c = pState.T_c;            % 金属核心温度 (新增)
         T_amb = params.ambient_temperature; % 环境温度
         r_inf = params.r_inf_particle * r_p;      % 使用参数中设置的无量纲远场边界
-        %r_inf = 5 * r_p;             % 增大远场边界到15倍粒径
-        %r_inf = params.r_inf_nd * r_p ;
+
         m_mg = pState.m_mg;
         % 固定物性参数
         Le = 1.0;                    % 刘易斯数(简化值)
@@ -73,20 +71,19 @@ function rate_info = solve_vaporization_algebraic(bvp_deps, alpha_CO, alpha_MgO,
         
         % 初始pem数猜测
         Q_rad = params.emissivity * params.sigma * (4 * pi * r_p^2) * (T_amb^4 - T_p^4);
-        %Q_rad = 0 ;
         Q_rad_f = params.emissivity * params.sigma * (4 * pi * r_p^2) * (2200^4 - T_p^4);
-        %Q_rad_f = 0;
+        
 
         % q_conv = params.h_conv * (T_amb -T_p);
         %fprintf('  > Q_rad = %.6e\n', Q_rad );
         q_conv = k_gas / r_p * (T_amb -T_p);
         %fprintf('  > Q_rad_f = %.6e\n', Q_rad_f);
         heat_convection = q_conv * (4 * pi * r_p^2);
-        heat_convection = 0 ;        
+        %heat_convection = 0 ;        
         Q_total = Q_rad + Q_rad_f + heat_convection;
         L_v = params.materials.Mg.L_evap_Mg / mw.Mg.molar_mass;
         %m_dot_guess = max(Q_rad / L_v, 1e-10);
-        m_dot_guess = Q_total / L_v *10;
+        m_dot_guess = Q_total / L_v  *1.5 ;
         Pe_m_guess_1 = m_dot_guess / (4 * pi * r_c * rho_D_gas);
         fprintf('m_dot_guess  %.6e \n',m_dot_guess);
         fprintf('r_c  %.6e \n',r_c);
@@ -98,8 +95,8 @@ function rate_info = solve_vaporization_algebraic(bvp_deps, alpha_CO, alpha_MgO,
     fprintf('  > 初始佩克莱数猜测: %.3e (m_dot = %.3e kg/s)\n', Pe_m_guess_1, m_dot_guess);
     
     % 估计初始总质量流率，用于无量纲化
-    m_dot_total_region1 = Pe_m_guess_1 * (4 * pi * r_c * rho_D_gas);
-    %m_dot_total = Pe_m_guess * (4 * pi * r_c * rho_D_gas);
+    m_dot_total_region1 = m_dot_guess ;
+    %m_dot_total = Pe_m_guess * (4 * pi * r_c * rho_D_gas);m_dot_guess
     
     r_f_guess = r_f_nd_guess * r_c ;  % 物理火焰半径基于核心半径
 
@@ -116,7 +113,8 @@ function rate_info = solve_vaporization_algebraic(bvp_deps, alpha_CO, alpha_MgO,
         %fprintf('  > 上一步Mg质量流率: %.3e \n', X0(12)*m_dot_total_region1);
     else
         % 生成完整初始猜测向量 (无量纲化)   所求向量内容
-        X0 = generate_initial_guess(m_dot_total_region1,r_f_guess, Pe_m_guess_1, r_p, r_c, r_inf, T_p,T_c, T_amb, Le, mw, physicalModel, params);
+        X0 = generate_initial_guess(m_dot_total_region1,r_f_guess, Pe_m_guess_1, r_p, r_c, r_inf, T_p,T_c, T_amb, Le, mw, physicalModel, params,cp_gas...
+        ,k_gas,rho_D_gas,porosity,tortuosity,D_ox_gas,ratio_k_cp_ox,ratio_k_cp_gas,k_ox,k_ox_gas);
         fprintf('  > 生成全新初始猜测\n');
     end
     
@@ -149,13 +147,22 @@ function rate_info = solve_vaporization_algebraic(bvp_deps, alpha_CO, alpha_MgO,
             solve_env1.m_dot_total = m_dot_total_region1;
             solve_env1.Q_0 = Q_0;
             solve_env1.stage_number = 1;
+            solve_env1.cp_gas = cp_gas ;
+            solve_env1.k_gas = k_gas ;
+            solve_env1.rho_D_gas = rho_D_gas ;
+            solve_env1.porosity = porosity ;
+            solve_env1.tortuosity = tortuosity ;
+            solve_env1.D_ox_gas = D_ox_gas ;
+            solve_env1.ratio_k_cp_ox = ratio_k_cp_ox ;
+            solve_env1.k_ox = k_ox ;
+            solve_env1.k_ox_gas = k_ox_gas ;
             
             % 简化的fsolve选项
             % options1 = optimoptions('fsolve', 'Display', 'off', 'MaxIterations', 10000, ...
             %            'FunctionTolerance', 1e-4, 'StepTolerance', 1e-8, 'MaxFunctionEvaluations', 10000, ...
             %            'OutputFcn', @(x,optimValues,state) monitor_progress(x,optimValues,state,solve_env1));
             options1 = optimoptions('fsolve', 'Algorithm', 'levenberg-marquardt', 'Display', 'off', 'MaxIterations', 10000, ...
-                        'FunctionTolerance', 1e-3, 'StepTolerance', 1e-3, 'MaxFunctionEvaluations', 10000, ...
+                        'FunctionTolerance', 1e-3, 'StepTolerance', 1e-4, 'MaxFunctionEvaluations', 10000, ...
                         'OutputFcn', @(x,optimValues,state) monitor_progress(x,optimValues,state,solve_env1));
                     
             % 求解简化模型
@@ -173,7 +180,14 @@ function rate_info = solve_vaporization_algebraic(bvp_deps, alpha_CO, alpha_MgO,
             end
             Pe_m_region1 = X1(2);
             m_dot_total_region1 = Pe_m_region1 * 4 * pi * r_c * rho_D_gas;
-             
+            m_dot_region1_Mg = m_dot_total_region1 *X1(12);
+            Y_T_surf_nd = X1(9);
+            T_p_nd = Y_T_surf_nd * T_c;
+            Y_flame_nd = X1(19);
+            T_flame_nd = Y_flame_nd * T_c;
+            fprintf('  > T_p_nd= %.6e \n', T_p_nd);
+            fprintf('  > T_flame_nd= %.6e \n', T_flame_nd);
+            fprintf('  > m_dot_region1_Mg= %.6e \n', m_dot_region1_Mg);
         % Y_T_inf_nd = X1(19);
         % T_f = Y_T_inf_nd * T_c;
         % fprintf('  > 阶段1求解完成，火焰温度: %.3e K\n', T_f);
@@ -211,10 +225,18 @@ function rate_info = solve_vaporization_algebraic(bvp_deps, alpha_CO, alpha_MgO,
             solve_env2.m_dot_total = m_dot_total_region1;
             solve_env2.Q_0 = Q_0;
             solve_env2.stage_number = 2;
-            
+            solve_env2.cp_gas = cp_gas ;
+            solve_env2.k_gas = k_gas ;
+            solve_env2.rho_D_gas = rho_D_gas ;
+            solve_env2.porosity = porosity ;
+            solve_env2.tortuosity = tortuosity ;
+            solve_env2.D_ox_gas = D_ox_gas ;
+            solve_env2.ratio_k_cp_ox = ratio_k_cp_ox ;
+            solve_env2.k_ox = k_ox ;
+            solve_env2.k_ox_gas = k_ox_gas ;
             % 简化的fsolve选项
             options2 = optimoptions('fsolve', 'Algorithm', 'levenberg-marquardt','Display', 'off', 'MaxIterations', 1000000, ...
-                        'FunctionTolerance', 1e-4, 'StepTolerance', 1e-6, 'MaxFunctionEvaluations', 1000000, ...
+                        'FunctionTolerance', 1e-3, 'StepTolerance', 1e-4, 'MaxFunctionEvaluations', 1000000, ...
                         'OutputFcn', @(x,optimValues,state) monitor_progress(x,optimValues,state,solve_env2));
             
             % 使用阶段1的解作为初值
@@ -232,7 +254,14 @@ function rate_info = solve_vaporization_algebraic(bvp_deps, alpha_CO, alpha_MgO,
             end
             Pe_m_region1 = X2(2);   
             m_dot_total_region1 = Pe_m_region1 * 4 * pi * r_c * rho_D_gas;
-                    
+            m_dot_region1_Mg = m_dot_total_region1 *X2(12);
+            Y_T_surf_nd = X2(9);
+            T_p_nd = Y_T_surf_nd * T_c;
+            Y_flame_nd = X2(19);
+            T_flame_nd = Y_flame_nd * T_c;
+            fprintf('  > T_p_nd= %.6e \n', T_p_nd);
+            fprintf('  > T_flame_nd= %.6e \n', T_flame_nd);
+            fprintf('  > m_dot_region1_Mg= %.6e \n', m_dot_region1_Mg);
         % Y_T_inf_nd = X2(19);
         % T_f = Y_T_inf_nd * T_c;
         % fprintf('  > 阶段2求解完成，火焰温度: %.3e K\n', T_f);
@@ -272,10 +301,18 @@ function rate_info = solve_vaporization_algebraic(bvp_deps, alpha_CO, alpha_MgO,
             solve_env3.m_dot_total = m_dot_total_region1;
             solve_env3.Q_0 = Q_0;
             solve_env3.stage_number = 3;
-            
+            solve_env3.cp_gas = cp_gas ;
+            solve_env3.k_gas = k_gas ;
+            solve_env3.rho_D_gas = rho_D_gas ;
+            solve_env3.porosity = porosity ;
+            solve_env3.tortuosity = tortuosity ;
+            solve_env3.D_ox_gas = D_ox_gas ;
+            solve_env3.ratio_k_cp_ox = ratio_k_cp_ox ;
+            solve_env3.k_ox = k_ox ;
+            solve_env3.k_ox_gas = k_ox_gas ;
             % 简化的fsolve选项
             options3 = optimoptions('fsolve','Algorithm', 'levenberg-marquardt', 'Display', 'off', 'MaxIterations', 100000, ...
-                        'FunctionTolerance', 2e-4, 'StepTolerance', 1e-6, 'MaxFunctionEvaluations', 100000, ...
+                        'FunctionTolerance', 1e-4, 'StepTolerance', 1e-6, 'MaxFunctionEvaluations', 100000, ...
                         'Algorithm', 'levenberg-marquardt', ...
                         'OutputFcn', @(x,optimValues,state) monitor_progress(x,optimValues,state,solve_env3));
             
@@ -346,7 +383,8 @@ function rate_info = solve_vaporization_algebraic(bvp_deps, alpha_CO, alpha_MgO,
             try
                 visualization = params.plot_radial_distributions ; 
                 if visualization
-                    plot_radial_distributions(r_p, r_f, r_inf, Pe_m_region1, coeffs_0, coeffs_1, coeffs_2, T_p, T_c, params, physicalModel,pState);
+                    plot_radial_distributions(r_p, r_f, r_inf, Pe_m_region1, coeffs_0, coeffs_1, coeffs_2, T_p, T_c, params, physicalModel,pState,cp_gas...
+                        ,k_gas,rho_D_gas,porosity,tortuosity,D_ox_gas,ratio_k_cp_ox,ratio_k_cp_gas,k_ox,k_ox_gas);
                     fprintf('已生成求解结果的径向分布图\n');
                 end
             catch ME
@@ -369,52 +407,19 @@ end
 % 辅助函数
 % =========================================================================
 
-function X0 = generate_initial_guess(m_dot_total,r_f, Pe_m, r_p, r_c,r_inf, T_p, T_c, T_amb, Le, mw, physicalModel, params)
+function X0 = generate_initial_guess(m_dot_total,r_f, Pe_m, r_p, r_c,r_inf, T_p, T_c, T_amb, Le, mw, physicalModel, params,cp_gas...
+    ,k_gas,rho_D_gas,porosity,tortuosity,D_ox_gas,ratio_k_cp_ox,ratio_k_cp_gas,k_ox,k_ox_gas);
     % 为所有未知数生成无量纲化的初始猜测向量
     % 注意：无量纲化基准已改为金属核心半径r_c和金属核心温度T_c
-    T_f_guess = 2100 ;
-    
+    T_f_guess = 2200 ;
+    k = 0.3;
     % 气体物性的无量纲参数     co2  60 j/mol/k
     % 气体比热估计值 [J/(kg·K)]
     % co2  2000K
      % 气体导热系数估计值 [W/(m·K)]
-    k_gas = params.k_gas;
-    cp_gas = params.cp_gas ;     
-    k_solid = params.k_solid;
-    % 计算氧化层内的佩克莱数 - 考虑有效扩散系数
-    
-    porosity = params.material_properties.oxide_porosity;
-    tortuosity = params.material_properties.oxide_tortuosity;
-    rho_D_gas = params.rho_D_gas;
-    %  D_eff 等效后的rhoD 
-    D_eff = rho_D_gas* porosity / tortuosity;
-    D_eff = rho_D_gas* porosity / tortuosity / porosity ;
-    pressure  = params.ambient_pressure / 101325;
-    % D_ox_gas for cal
-    D_ox_gas = D_eff *porosity*5*5;
-    D_ox_gas = D_eff *porosity*5;
-    ratio_k_cp_ox = D_ox_gas ;
-    ratio_k_cp_gas = rho_D_gas;
-    %D_ox_gas = D_eff *10 ;
-    % kox 考虑固相气相导热 合并总的    kox gas 为乘孔隙率后的  
-    k_ox = k_gas* porosity + (1-porosity) * k_solid;
-    %k_ox = k_gas ;
-    k_ox_gas = k_ox * porosity;
-    k_ox_gas = k_gas* porosity;
-    %k_ox_gas = k_gas ;
-    %k_ox_gas = k_gas * porosity;
-    %fprintf('k_gas  %.6e \n',k_gas);
-    %%fprintf('k_ox_gas  %.6e \n',k_ox_gas);
-    %fprintf('cp_gas  %.6e \n',cp_gas);
-    %fprintf('D_ox_gas  %.6e \n',D_ox_gas);
-    %k_ox_gas = k_solid* exp(-1.5*porosity/(1-porosity));
-    %k_ox_gas = k_gas* porosity;
-    le_solid = cp_gas / k_ox_gas * D_ox_gas ;
     %fprintf('  > le_solid: = %.6e\n', le_solid);
     % 假定T_c = T_p (初始猜测阶段)
 
-    T_c = T_c; 
-    
     r_p_nd = r_p / r_c;        % 无量纲颗粒外表面半径
     r_f_nd = r_f / r_c;        % 无量纲火焰半径
     r_inf_nd = r_inf / r_c;    % 无量纲远场边界
@@ -422,20 +427,14 @@ function X0 = generate_initial_guess(m_dot_total,r_f, Pe_m, r_p, r_c,r_inf, T_p,
     T_p_nd = T_p / T_c;        % 无量纲氧化层表面温度（基于核心温度）
 
 
-    % 核心半径无量纲为1
-    r_c_nd = 1.0;              % 无量纲核心表面半径
-
-
-    % 核心表面CO参数
-    Y_CO_core = 0;                  % CO在核心表面的初始浓度
-
 
     r_ini = params.initial_diameter/2;
-    oxide_ratio = (r_p - r_c) / r_ini;  % 氧化层厚度与初始半径比
+    oxide_ratio = (r_p - r_c) / r_ini;  % 氧化层厚  度与初始半径比
 
 
     %%%%%基于区域1进行展开 
         % 核心表面Mg质量分数
+        pressure = params.ambient_pressure / 101325 ;
         A = 4.32e5;
         B = 1.77e4;
         P_Mg_surface = A * exp(-B / T_c);
@@ -488,14 +487,14 @@ function X0 = generate_initial_guess(m_dot_total,r_f, Pe_m, r_p, r_c,r_inf, T_p,
 
         Pe_m_region0 = m_dot_region0_total / (4 * pi * r_c * D_ox_gas );
         Pe_cp_region0 = m_dot_region0_total * cp_gas / (4 * pi * r_c * k_ox_gas);
-        Pe_cp_region0 = m_dot_region0_total  / (4 * pi * r_c * ratio_k_cp_ox);
+        %Pe_cp_region0 = m_dot_region0_total  / (4 * pi * r_c * ratio_k_cp_ox);
         Pe_m_region1 = Pe_m ;
         Pe_cp_region1 = m_dot_region1_total * cp_gas / (4 * pi * r_c * k_gas);
-        Pe_cp_region1 = m_dot_region1_total / (4 * pi * r_c * ratio_k_cp_gas);
-        rho_D_gas
+        %Pe_cp_region1 = m_dot_region1_total / (4 * pi * r_c * ratio_k_cp_gas);
+
         Pe_m_region2 = m_dot_region2_total / (4 * pi * r_c * rho_D_gas );
         Pe_cp_region2 = m_dot_region2_total * cp_gas / (4 * pi * r_c * k_gas);
-        Pe_cp_region2 = m_dot_region2_total / (4 * pi * r_c * ratio_k_cp_gas);
+        %Pe_cp_region2 = m_dot_region2_total / (4 * pi * r_c * ratio_k_cp_gas);
     %Pe_cp_region0 = m_dot_region0_total  / (4 * pi * r_c * ratio_k_cp_ox);
 
 
@@ -512,81 +511,43 @@ function X0 = generate_initial_guess(m_dot_total,r_f, Pe_m, r_p, r_c,r_inf, T_p,
     %%%%%%%%%%此处猜测 较大温差时间 计算问题
 
     %Q_rad_oxshell = 4 * pi * r_c^2 * params.emissivity * params.sigma * porosity * (T_oxshell^4 - T_c^4);
-    Q_rad_oxshell = 4 * pi * r_c^2 * params.emissivity * params.sigma * (T_oxshell^4 - T_c^4);
+    Q_rad_oxshell = 4 * pi * r_c^2 * params.emissivity * params.sigma * (T_oxshell^4 - T_c^4) ;
     
+    %   表面反应热 全用来加热 
     H_reac_CO = params.reaction_heats.surface_reac_H;
+    Q_reaction_face  = abs(m_dot_surface_Mg) * (-H_reac_CO) ;
+
     % mg不直接吸收 气相反应热 
     H_reac_Mg_flame= params.reaction_heats.flame_reac_H;
-    %   表面反应热 全用来加热 
-    Q_reaction_face  = abs(m_dot_surface_Mg) * (-H_reac_CO) ;
-    %Q_reaction_face = 0 ;
     %Q_reaction_flame = abs(m_dot_region0_mg) * (-H_reac_Mg_flame) ;
     Q_reaction_flame = 0 ;
-    Q_reaction = Q_reaction_face + Q_reaction_flame;
+    Q_reaction = Q_reaction_face + Q_reaction_flame * k;
 
-    %对流部分 
+    %对流部分   不作用于mg核
     q_conv = params.k_gas / r_p * (T_amb -T_p);
     heat_convection = q_conv * (4 * pi * r_p^2);
-    %heat_convection = 0 ;
+    heat_convection = 0 ;
 
 
     %  mg核表面能量守恒 蒸发=表面反应 + 辐射 + 镁右侧导热（此处为 kox * dT）
-    %  A表示导热部分   来自于 右侧 
-    A =  Q_evap - Q_reaction - Q_rad_oxshell - heat_convection -Q_flame *0.9; 
+    %  A表示导热部分   来自于 右侧
+    A =  Q_evap - Q_reaction - Q_rad_oxshell - heat_convection ; 
     %%%%%  区域0能量方程积分  在此处为 koxgas * dt  （B0推导针对能量方程展开 、此处对 A变化）
-    A_porosity = A / k_ox * k_ox_gas ;   % 区域一积分后的导热  用于后续计算； 
+    A_porosity = A  * porosity ;   % 区域一积分后的导热  用于后续计算； 
     Q_sens_region0 = m_dot_region0_total * cp_gas * T_c ;
 
     % B0 
-    B0 = A_porosity - Q_sens_region0 ;
+    B0 =  A_porosity - Q_sens_region0 ;
     % 无量纲化 两步   先显热部分 再进行温度处理  此处pemcp 中为koxgas
     B0_nd = B0 / (m_dot_region0_total * cp_gas * T_c );
-    %%fprintf(' 镁核表面 m_dot_region0_total: %.3e \n', m_dot_region0_total);
-    %fprintf(' 镁核表面 A: %.3e \n', A);
+    %fprintf(' 镁核表面 m_dot_region0_total: %.3e \n', m_dot_region0_total);
+    fprintf(' 镁核表面温度梯度: %.3e \n', A_porosity);
     %fprintf(' 镁核表面 B0_nd: %.3e \n', B0_nd);
-    % fprintf(' MG表面 Q_cod_region0: %.3e \n', Q_cod_region0);
+    %fprintf(' MG表面 Q_cod_region0: %.3e \n', Q_cod_region0);
     % 区域0初始猜测（氧化层内）
     Y_T_core_nd = 1.0;                % 核心表面温度为沸点温度(无量纲，基于T_c)               % 初始猜测B0参数
     
-    exp_term_p = exp(Pe_cp_region0 * (1-1/r_p_nd)) - 1;
-    T_p_nd = Y_T_core_nd + (Y_T_core_nd + B0_nd) * exp_term_p;
-    % 核心表面Mg浓度（基于Clausius-Clapeyron关系）
 
-
-        %n_dot_region0_Mg = abs(m_dot_region0_mg) / mw.Mg.molar_mass;
-        %n_dot_region0_CO = abs(m_dot_region0_co) / mw.CO.molar_mass;
-
-        %n_frac_region0 = n_dot_region0_Mg + n_dot_region0_CO;
-
-        %n_frac_region0_Mg = n_dot_region0_Mg / n_frac_region0;
-        %n_frac_region0_CO = n_dot_region0_CO / n_frac_region0;
-
-
-
-
-        %L_v = mw.Mg.L_evap_Mg;
-        %R_Mg = params.R_u / mw.Mg.molar_mass;
-        %M_mix = physicalModel.get_ambient_mixture_molar_mass();
-        %exponent = (L_v / R_Mg) * (1/T_amb - 1/T_c);
-        %Y_mg_theory = mw.Mg.molar_mass / M_mix * exp(exponent);
-            % 核心表面Mg质量分数
-        %A = 4.32e5;
-        %B = 1.77e4;
-        %P_Mg_surface = A * exp(-B / T_c);
-        %V_frac_Mg = P_Mg_surface / pressure;
-        %V_frac_CO = 1 - V_frac_Mg;
-        %Y_Mg_theory = V_frac_Mg * mw.Mg.molar_mass / (V_frac_Mg * mw.Mg.molar_mass + V_frac_CO * mw.CO.molar_mass);
-        %fprintf('T_c  %.6e \n',T_c);
-        %fprintf('P_Mg_surface  %.6e \n',P_Mg_surface);
-        %fprintf('Y_Mg_theory  %.6e \n',Y_Mg_theory);
-        %fprintf('V_frac_Mg  %.6e \n',V_frac_Mg);
-        % Y_Mg_theory = physicalModel.cal_Mg_frac_surface(pressure,T_c);
-        %Y_Mg_core = Y_Mg_theory;  
-        %Y_CO_core = 1 - Y_Mg_core;
-        %Y_Mg_frac0 =  (1 - Y_CO_frac0);                  % Mg在区域0总质量流率中的比例
-
-        %Y_Mg_core = Y_Mg_core /(Y_Mg_core + Y_CO_core);
-        %Y_CO_core = Y_CO_core /(Y_Mg_core + Y_CO_core);
     % 1. 全局参数
     X0(1) = r_f_nd;            
     X0(2) = Pe_m_region1;                
@@ -602,7 +563,7 @@ function X0 = generate_initial_guess(m_dot_total,r_f, Pe_m, r_p, r_c,r_inf, T_p,
 
     exp_term_p = exp(Pe_cp_region0 * (1-1/r_p_nd)) - 1;
     T_p_nd = Y_T_core_nd + (Y_T_core_nd + B0_nd) * exp_term_p;
-    %T_p = T_p_nd * T_c;
+    T_p_region0 = T_p_nd * T_c;
 
     exp_arg_region0_Y = Pe_m_region0 * (1 - 1/r_p_nd);
     Y_Mg_region0_surf = Y_Mg_core + (Y_Mg_core - Y_Mg_frac0) * (exp(exp_arg_region0_Y) - 1);
@@ -647,12 +608,12 @@ function X0 = generate_initial_guess(m_dot_total,r_f, Pe_m, r_p, r_c,r_inf, T_p,
             %对流部分 
             q_conv = params.k_gas / r_p * (T_amb -T_p);
             heat_convection = q_conv * (4 * pi * r_p^2);
-            heat_convection = 0 ;
+            %heat_convection = 0 ;
 
             %  气相反应直接被颗粒吸收部分
             H_reac_f = params.reaction_heats.flame_reac_H;
-            Q_reac_f  =  abs(m_dot_region1_Mg) *(-H_reac_f) * 0.5;
-            Q_reac_f = 0 ;
+            Q_reac_f  =  abs(m_dot_region1_Mg) *(-H_reac_f) * k ;
+            %Q_reac_f = 0 ;
 
             % 类似A 此处用B表示能量
             %%%%%%%%%%%来源于 颗粒表面能量      （火焰+环境）辐射 +沉积 = 该表面处向两侧的热传导 + 向颗粒的辐射
@@ -660,12 +621,12 @@ function X0 = generate_initial_guess(m_dot_total,r_f, Pe_m, r_p, r_c,r_inf, T_p,
 
             %左侧热传导计算 即 koxgas * DT    根据0区域积分后能量方程  此处为A_porosity 不是 A 
             % 
-            Q_conv_left = -(A_porosity + m_dot_region0_total * cp_gas * ( T_p - T_c ) ) ;
+            Q_conv_left = (A_porosity + m_dot_region0_total * cp_gas * ( T_p - T_c ) ) ;
             % B表示颗粒右侧导热部分   即kgas* dT
             B = (Q_rad  + Q_reaction_face + Q_dep_MgO + heat_convection + Q_reac_f- ...
                     Q_conv_left - Q_rad_oxshell) ;
-            %fprintf(' 颗粒表面 Q_conv_left : %.3e \n', Q_conv_left);
-            %fprintf(' 颗粒表面 B : %.3e \n', B );
+            fprintf(' 颗粒表面 Q_conv_left : %.3e \n', Q_conv_left);
+            fprintf(' 颗粒表面 B : %.3e \n', B );
             %Q_cod_region0 = Q_evap - Q_reaction - Q_rad_oxshell ;   Q_sens_region0 = m_dot_region0_total * cp_gas * T_c / porosity;
             %   Q_cod_region0 +m_dot_region0_total*cp_gas*(T_p-T_c)/porosity   左侧梯度   求导热时 乘孔隙率
             % 显热贡献
@@ -769,17 +730,18 @@ function X0 = generate_initial_guess(m_dot_total,r_f, Pe_m, r_p, r_c,r_inf, T_p,
 
                 % 反应热贡献   
                 H_reac_f = params.reaction_heats.flame_reac_H;
-                Q_reac_f  =  abs(m_dot_region1_Mg) *(-H_reac_f)*0.1;
+                Q_reac_f  =  abs(m_dot_region1_Mg) *(-H_reac_f)* (1-k);
                 %Q_reac_f  =  abs(m_dot_region1_Mg) *(-H_reac_f) * 0.5;
                 % 颗粒表面到火焰面 积分后 表示   注意与B1的区别   B1 = B - Q_sens_region1
                 Q_cond_left = m_dot_region1_total * cp_gas * (T_f - T_p) + B ;
                 fprintf(' 火焰面 Q_cond_left: %.3e \n', Q_cond_left);
+                fprintf(' m_dot_region1_Mg: %.3e \n', m_dot_region1_Mg);
                 %%%%% C 表示火焰面右侧导热 部分
-                C = (Q_reac_f- Q_rad_total - abs(Q_cond_left)) ;
+                C = -(Q_reac_f- Q_rad_total - Q_cond_left) ;
     
                 Q_sens_region2 = m_dot_region2_total * cp_gas * T_f;
               
-                B2 = -C - Q_sens_region2;
+                B2 = C - Q_sens_region2;
                 B2_nd = B2 / (m_dot_region2_total * cp_gas* T_c );
 
                 %B2_nd = B2/ T_p;
@@ -793,12 +755,15 @@ function X0 = generate_initial_guess(m_dot_total,r_f, Pe_m, r_p, r_c,r_inf, T_p,
         Y_CO2_f = Y_CO2_surf + (Y_CO2_surf - Y_CO2_frac1) * exp_term_Y;
         Y_CO_f = Y_CO_surf + (Y_CO_surf - Y_CO_frac1) * exp_term_Y;
         Y_MgO_f = Y_MgO_surf + (Y_MgO_surf - Y_MgO_frac1) * exp_term_Y;
-        %Y_Mg_f = 0 ;
-        %Y_CO2_f = 0 ;
+        Y_Mg_f = 0 ;
+        Y_CO2_f = 0 ;
         %fprintf('  Y_CO_f = %.3e, Y_MgO_f = %.3e\n', Y_CO_f, Y_MgO_f);
-        %Y_CO_f  =  Y_CO_f / (Y_CO_f + Y_MgO_f);
-        %Y_MgO_f = 1 - Y_CO_f ;
+        Y_CO_f  =  Y_CO_f / (Y_CO_f + Y_MgO_f);
+        Y_MgO_f = 1 - Y_CO_f ;
         %fprintf('  Y_CO_f = %.3e, Y_MgO_f = %.3e\n', Y_CO_f, Y_MgO_f);
+        exp_term_inf = exp(Pe_cp_region2 * (1/r_f_nd-1/r_inf_nd)) - 1;
+        T_inf_nd = T_f_nd + (T_f_nd + B2_nd) * exp_term_inf;
+
     % 区域2的组分参数
         X0(21) = Y_Mg_f;       % 火焰面Mg质量分数
         X0(22) = Y_Mg_frac2;   % 区域2 Mg质量流率比例
@@ -829,7 +794,8 @@ function X0 = generate_initial_guess(m_dot_total,r_f, Pe_m, r_p, r_c,r_inf, T_p,
         fprintf('  Y_CO2_flame = %.3e, Y_CO2_frac = %.3e\n', X0(23), X0(24));
         fprintf('  Y_CO_flame = %.3e, Y_CO_frac = %.3e\n', X0(25), X0(26));
         fprintf('  Y_MgO_flame = %.3e, Y_MgO_frac = %.3e\n', X0(27), X0(28));
-         fprintf(' T_F: %.2f K\n', T_f_nd*T_c);
+        fprintf(' T_F: %.2f K\n', T_f_nd*T_c);
+        fprintf(' T_inf: %.2f K\n', T_inf_nd*T_c);
     end
     % 可视化初始猜测
        %visualize_initial_guess(X0, r_p, r_f, r_inf, T_p, T_amb, params,  physicalModel);
@@ -844,7 +810,8 @@ function F = equations_system(X, env)
     % 区域0: Y(r) = (Y_core - Y_frac) * (exp(Pe_m * ((1) - (1/r_nd))) - 1) + Y_core
     % 区域1: Y(r) = (Y_surf - Y_frac) * (exp(Pe_m * ((1/r_p_nd) - (1/r_nd))) - 1) + Y_surf
     % 区域2: Y(r) = (Y_flame - Y_frac) * (exp(Pe_m * ((1/r_f_nd) - (1/r_nd))) - 1) + Y_flame
- 
+   
+    k = 0.3;
     % 提取求解环境
     bvp_deps = env.bvp_deps;
     simplified_mode = env.simplified_mode;
@@ -854,6 +821,16 @@ function F = equations_system(X, env)
     Le = env.Le;
     m_dot_total = env.m_dot_total;
 
+    cp_gas = env.cp_gas;
+    k_gas = env.k_gas;
+    rho_D_gas = env.rho_D_gas;
+    porosity = env.porosity;
+    tortuosity = env.tortuosity;
+    D_ox_gas = env.D_ox_gas;
+    ratio_k_cp_ox = env.ratio_k_cp_ox;
+    ratio_k_cp_gas = rho_D_gas;
+    k_ox = env.k_ox;
+    k_ox_gas = env.k_ox_gas;
     % 提取参数
     params = bvp_deps.params;
     pState = bvp_deps.pState;
@@ -862,30 +839,6 @@ function F = equations_system(X, env)
     T_amb = params.ambient_temperature;
     mw = params.materials ;
     
-
-    porosity = params.material_properties.oxide_porosity;
-    tortuosity = params.material_properties.oxide_tortuosity;
-    rho_D_gas = params.rho_D_gas;
-    D_eff = rho_D_gas  * porosity / tortuosity;
-    D_eff = rho_D_gas* porosity / tortuosity / porosity ;
-    k_solid  = params.k_solid;
-    cp_gas = params.cp_gas;
-    k_gas = params.k_gas;
-    k_ox = k_gas* porosity + (1-porosity)*k_solid;
-    %k_ox = k_gas ;
-    k_ox_gas = k_ox* porosity;
-    k_ox_gas = k_gas* porosity;
-    %k_ox_gas = k_gas * porosity;
-    %k_ox_gas = k_solid* exp(-1.5*porosity/(1-porosity));
-    %k_ox_gas = k_gas* porosity ;
-    %k_ox_gas = k_gas ;
-    D_ox_gas = D_eff *porosity*5*5 ;
-    D_ox_gas = D_eff *porosity*5;
-    ratio_k_cp_ox = D_ox_gas ;
-    ratio_k_cp_gas = rho_D_gas;
-    %D_ox_gas = D_eff * 10 ;
-    %D_ox_gas = D_eff ;
-    le_solid = k_solid / cp_gas * rho_D_gas ;
     %fprintf('  > le_solid: = %.6e\n', le_solid);
     % 基本物理参数
     r_p = pState.r_p;
@@ -1029,7 +982,7 @@ function F = equations_system(X, env)
     % 关联二区的质量流率占比与质量分数;
     %Y_CO2_surf = 0.0;
     %Y_CO2_frac1 = 0.0;
-    Y_Mg_frac2 = 0.0;
+    %Y_Mg_frac2 = 0.0;
     %Y_MgO_surf = 0 ;
     
     %Y_Mg_flame = 0 ;
@@ -1042,11 +995,11 @@ function F = equations_system(X, env)
     Pe_m_region2 = m_dot_region2_total / (4 * pi * r_c * rho_D_gas);
 
     Pe_cp_region0 = m_dot_region0_total * cp_gas / (4 * pi * r_c * k_ox_gas);
-    Pe_cp_region0 = m_dot_region0_total  / (4 * pi * r_c * ratio_k_cp_ox);
+    %Pe_cp_region0 = m_dot_region0_total  / (4 * pi * r_c * ratio_k_cp_ox);
     Pe_cp_region1 = m_dot_region1_total * cp_gas / (4 * pi * r_c * k_gas);
-    Pe_cp_region1 = m_dot_region1_total / (4 * pi * r_c * ratio_k_cp_gas);
+    %Pe_cp_region1 = m_dot_region1_total / (4 * pi * r_c * ratio_k_cp_gas);
     Pe_cp_region2 = m_dot_region2_total * cp_gas / (4 * pi * r_c * k_gas);
-    Pe_cp_region2 = m_dot_region2_total / (4 * pi * r_c * ratio_k_cp_gas);
+    %Pe_cp_region2 = m_dot_region2_total / (4 * pi * r_c * ratio_k_cp_gas);
     %fprintf('m_dot_region0_total  %.6e \n',m_dot_region0_total);
     %fprintf('m_dot_region1_total  %.6e \n',m_dot_region1_total);
     %fprintf('m_dot_region2_total  %.6e \n',m_dot_region2_total);
@@ -1067,7 +1020,6 @@ function F = equations_system(X, env)
     %r_inf_nd = params.r_inf_nd; 
     % 初始化残差向量 (34个方程: 8个新方程 + 原有26个方程)
     F = zeros(32, 1);  % 减少到32个方程
-    
     % --- 组0: 核心表面边界条件 (r = r_c) ---
      
     % BC 2: 表面Mg质量分数由克-克方程在沸点下的情况决定
@@ -1095,13 +1047,13 @@ function F = equations_system(X, env)
     exp_arg_region0_T = Pe_cp_region0 * (1 - 1/r_p_nd);
     T_region0_surf = Y_T_core_nd + (Y_T_core_nd + B0_nd) * (exp(exp_arg_region0_T) - 1);
 
-    F(1) = relaxation * (Y_T_core_nd - 1.0);  % BC 1: 核心表面温度为沸点(无量纲为1.0)
+    F(1) = relaxation * (Y_T_core_nd - 1.0)*10;  % BC 1: 核心表面温度为沸点(无量纲为1.0)
     F(2) = relaxation * (Y_Mg_core - Y_Mg_theory)*5;
-    F(3) = relaxation * (T_region0_surf - Y_T_surf_nd)*10;  % 温度连续
-    F(4) = relaxation * (Y_Mg_region0_surf - Y_Mg_surf)*30;  % Mg连续
-    F(5) = relaxation * (Y_CO_region0_surf - Y_CO_surf)*30;  % CO连续
-    F(6) = relaxation * Y_MgO_surf*40 ;  % 氧化层内无MgO气态组分
-    F(7) = relaxation * Y_CO2_surf  ;  % 氧化层内无CO2气态组分
+    F(3) = relaxation * (Y_T_surf_nd - T_region0_surf)*10;  % 温度连续
+    F(4) = relaxation * (Y_Mg_region0_surf - Y_Mg_surf)*5;  % Mg连续
+    F(5) = relaxation * (Y_CO_region0_surf - Y_CO_surf)*5;  % CO连续
+    F(6) = relaxation * Y_MgO_surf*10 ;  % 氧化层内无MgO气态组分
+    F(7) = relaxation * Y_CO2_surf ;  % 氧化层内无CO2气态组分
 
     %fprintf('  Pe_m_region0: %.3e \n', Pe_m_region0);
     %fprintf('  (Y_Mg_core - Y_Mg_frac0): %.3e \n', (Y_Mg_core - Y_Mg_frac0));
@@ -1117,11 +1069,11 @@ function F = equations_system(X, env)
     Q_evap = m_dot_region1_Mg * L_v;
     Q_flame = m_dot_region1_Mg * abs(H_reac_f);
     %fprintf('  m_dot_region1_Mg: %.3e \n', m_dot_region1_Mg);
-    %fprintf('  Q_evap: %.3e \n', Q_evap);
-    %fprintf('  Q_flame: %.3e \n', Q_flame*0.5);
+    %fprintf('  Q_evap: %.3e, Q_flame: %.3e  \n', Q_evap,Q_flame);
+    %fprintf('  ratio: %.3e \n', Q_evap/Q_flame);
     q_conv = params.k_gas / r_p * (T_amb -T_p);
     heat_convection = q_conv * (4 * pi * r_p^2);
-    %heat_convection = 0 ;
+    heat_convection = 0 ;
 
 
     % 表面反应热
@@ -1130,25 +1082,25 @@ function F = equations_system(X, env)
     %Q_reac_CO = 0 ;
     % 辐射
     emissivity_oxide = params.emissivity ;
-    Q_rad_ox = emissivity_oxide * params.sigma * (4 * pi * r_c^2) * ((T_p_nd*T_c)^4 - (T_c)^4);
+    Q_rad_ox = emissivity_oxide * params.sigma * (4 * pi * r_c^2) * ((T_p)^4 - (T_c)^4) ;
     
     % 计算B0参数
     Q_sens_region0 = m_dot_region0_total * cp_gas * T_c;
-    A = Q_evap - Q_reac_CO - Q_rad_ox -heat_convection -  Q_flame*0.9;
-    A_porosity = A / k_ox * k_ox_gas; 
+    A = Q_evap - Q_reac_CO - Q_rad_ox -heat_convection ;
+    A_porosity = A  * porosity ; 
     B0 = A_porosity - Q_sens_region0;
     B0_calc_nd = B0 / (m_dot_region0_total * cp_gas* T_c);
     %fprintf('  B0_nd: %.3e \n', B0_nd);
     %fprintf('  B0_calc_nd: %.3e \n', B0_calc_nd);
     %fprintf(' MG表面 Q_cod_region0: %.3e \n', Q_cod_region0);
-    F(8) = relaxation * (B0_nd - B0_calc_nd) ;
+    F(8) = relaxation * (B0_nd - B0_calc_nd)*0.01;
 
     % --- 组2: 颗粒表面边界条件 (r = r_p) ---
     % 注意：不再强制表面温度等于沸点，而是通过连续性条件确定
     % F(10) = relaxation * (Y_T_surf_nd - 1.0) * 2;  % BC: 表面温度等于沸点(无量纲为1.0)
     % 放松表面温度约束，用较小的权重确保不会偏离太远
 
-    F(9) = relaxation * (Y_T_surf_nd - T_p_nd)*30;  % 弱约束：表面温度接近初始设定值
+    F(9) = relaxation * (Y_T_surf_nd - T_p_nd)*10;  % 弱约束：表面温度接近初始设定值
     %fprintf(' Y_T_surf_nd: %.3e \n', Y_T_surf_nd*T_c);
     %fprintf(' T_p_nd: %.3e \n', T_p_nd*T_c);
     %F(11) = relaxation * Y_CO_surf;      % BC: 表面CO浓度为零
@@ -1165,12 +1117,12 @@ function F = equations_system(X, env)
             %fprintf('  > Q_rad = %.6e\n', Q_rad );
     q_conv = params.k_gas / r_p * (T_amb -T_p);
     heat_convection = q_conv * (4 * pi * r_p^2);
-    heat_convection = 0 ;
+    %heat_convection = 0 ;
 
     m_dot_Mg_1 = m_dot_region1_Mg ;
     H_reac_f = params.reaction_heats.flame_reac_H;  % [J/kg]
-    Q_reac_f_to_face = abs(m_dot_Mg_1)  * (-H_reac_f) * 0.5;
-    Q_reac_f_to_face = 0 ;
+    Q_reac_f_to_face = abs(m_dot_Mg_1)  * (-H_reac_f) * k;
+    %Q_reac_f_to_face = 0 ;
 
     H_dep_MgO = params.H_dep_MgO;
     Q_dep_MgO = abs(m_dot_region1_MgO)* (-H_dep_MgO);
@@ -1190,8 +1142,8 @@ function F = equations_system(X, env)
     % 显热贡献
     Q_sens_1 = m_dot_region1_total * cp_gas * T_p;
     %%% 左侧导热 = 颗粒表面（0区域）左侧  导热梯度项 * 孔隙率
-    Q_conv_left = -(A_porosity + m_dot_region0_total * cp_gas * ( T_p - T_c ) ) ;
-    B = (Q_rad  + Q_reac_CO + Q_dep_MgO + heat_convection + Q_reac_f_to_face- ...
+    Q_conv_left = (A_porosity + m_dot_region0_total * cp_gas * ( T_p - T_c ) ) ;
+    B =(Q_rad  + Q_reac_CO + Q_dep_MgO + heat_convection + Q_reac_f_to_face- ...
             Q_rad_ox - Q_conv_left) ;
             %fprintf(' 颗粒表面 B : %.3e \n', B );
     % 计算B1 (物理量)
@@ -1204,7 +1156,7 @@ function F = equations_system(X, env)
     %fprintf('  B1_nd: %.3e \n', B1_nd);
     %fprintf('  B1_calc_nd: %.3e \n', B1_calc_nd);
     % 约束B1参数
-    F(10) = relaxation * (B1_nd - B1_calc_nd)*0.01 ;  % 原来是F(14)，现在是F(12)
+    F(10) = relaxation * (B1_nd - B1_calc_nd)*0.01;  % 原来是F(14)，现在是F(12)
 
 
     exp_arg_Y_region1 = Pe_m_region1 * (1/r_p_nd - 1/r_f_nd);
@@ -1228,8 +1180,8 @@ function F = equations_system(X, env)
 
     Y_T_inf_nd = Y_T_flame_nd + (Y_T_flame_nd + B2_nd) * (exp(exp_arg_T_far) - 1);
 
-    F(11) = relaxation * (Y_T_inf_nd - T_amb_nd)*10;  % 增强远场温度约束
-    
+    F(11) = relaxation * (Y_T_inf_nd - T_amb_nd);  % 增强远场温度约束
+    %fprintf(' Y_T_inf_nd: %.3e \n', Y_T_inf_nd * T_c);
     % 远场组分
     exp_arg_Y_nd = Pe_m_region2 * (1/r_f_nd - 1/r_inf_nd);
     %exp_arg_Y_nd = Pe_m_region2 * (1/r_f_nd );
@@ -1244,11 +1196,11 @@ function F = equations_system(X, env)
     %Y_MgO_inf=0;
     %Y_Mg_inf=0;
     %Y_CO2_inf=1;
-    F(12) = relaxation * Y_CO_inf *10;       % 增强CO约束
-    F(13) = relaxation * Y_MgO_inf *10;      % 增强MgO约束
-    F(14) = relaxation * Y_Mg_inf*20 ;      % 强化远场Mg约束
+    F(12) = relaxation * Y_CO_inf;       % 增强CO约束
+    F(13) = relaxation * Y_MgO_inf;      % 增强MgO约束
+    F(14) = relaxation * Y_Mg_inf;      % 强化远场Mg约束
     % F(15) = relaxation * (Y_CO2_inf-1) ;  % 强化远场CO2约束
-    F(15) = relaxation * (Y_CO2_inf-1)*10;  % 强化远场CO2约束
+    F(15) = relaxation * (Y_CO2_inf-1);  % 强化远场CO2约束
     %fprintf('  Y_CO2_inf: %.3e \n', Y_CO2_inf);
     %fprintf('  Y_Mg_flame: %.3e \n', Y_Mg_flame);
     % --- 组4: 火焰面界面条件 (r = r_f) ---
@@ -1256,19 +1208,19 @@ function F = equations_system(X, env)
     %fprintf('  Y_T_flame_nd: %.3e \n', Y_T_flame_nd);
     %fprintf('  T_flame_region1: %.3e \n', T_flame_region1 *T_c);
     %fprintf('  Y_T_flame_nd: %.3e \n', Y_T_flame_nd *T_c);
-    F(16) = relaxation * (T_flame_region1-Y_T_flame_nd)*10;  % 增强温度连续性
-    F(17) = relaxation * (Y_CO2_region1_flame-Y_CO2_flame)*20; % 增强组分连续
+    F(16) = relaxation * (T_flame_region1-Y_T_flame_nd);  % 增强温度连续性
+    F(17) = relaxation * (Y_CO2_region1_flame-Y_CO2_flame)*10; % 增强组分连续
     %fprintf(' 求解过程中一区计算CO2浓度: %.3e \n', Y_CO2_region1_flame);
     %fprintf(' 求解过程中火焰面CO2浓度: %.3e \n', Y_CO2_flame);
-    F(18) = relaxation *(Y_Mg_region1_flame-Y_Mg_flame)*20; % 增强组分连续
-    F(19) = relaxation * (Y_MgO_region1_flame-Y_MgO_flame)*25 ; % 增强组分连续
-    F(20) = relaxation * (Y_CO_region1_flame-Y_CO_flame)*20; % 增强组分连续
+    F(18) = relaxation *(Y_Mg_region1_flame-Y_Mg_flame); % 增强组分连续
+    F(19) = relaxation * (Y_MgO_region1_flame-Y_MgO_flame); % 增强组分连续
+    F(20) = relaxation * (Y_CO_region1_flame-Y_CO_flame); % 增强组分连续
     % 火焰面组分和为1
-    F(21) = relaxation * (Y_CO_flame + Y_MgO_flame + Y_Mg_flame + Y_CO2_flame - 1.0)*10; % 增强组分和约束
-    F(22) = relaxation * (Y_CO2_region1_flame+Y_CO_region1_flame+Y_Mg_region1_flame+Y_MgO_region1_flame-1)*10; % 增强组分和约束
+    F(21) = relaxation * (Y_CO_flame + Y_MgO_flame + Y_Mg_flame + Y_CO2_flame - 1.0); % 增强组分和约束
+    F(22) = relaxation * (Y_CO2_region1_flame+Y_CO_region1_flame+Y_Mg_region1_flame+Y_MgO_region1_flame-1); % 增强组分和约束
     % 反应物耗尽
     F(23) = relaxation * Y_Mg_region1_flame  ; % 强化Mg在火焰面耗尽条件
-    F(24) = relaxation * Y_CO2_flame * 10 ; % 强化火焰面CO2约束
+    F(24) = relaxation * Y_CO2_flame *10  ; % 强化火焰面CO2约束
     
     % 火焰面能量守恒
         
@@ -1280,30 +1232,30 @@ function F = equations_system(X, env)
     %m_dot_Mg_1 = m_dot_region1_total * Y_Mg_frac1;m_dot_region1_Mg
     H_reac_f = params.reaction_heats.flame_reac_H;  % [J/kg]
     %Q_reac_f_to_flame = abs(m_dot_region1_Mg)  * (-H_reac_f) * 0.5;
-    Q_reac_f_to_flame = abs(m_dot_region1_Mg)  * (-H_reac_f) * 0.1;
+    Q_reac_f_to_flame = abs(m_dot_region1_Mg)  * (-H_reac_f) * (1-k);
     % 辐射热贡献 (物理量)
     emissivity = params.emissivity;
     sigma = params.sigma;
     Q_rad_f_p = emissivity * sigma * (4 * pi * r_f^2) * (T_f^4 - T_p^4);
     Q_rad_f_amb = emissivity * sigma * (4 * pi * r_f^2) * (T_f^4 - T_amb^4);
     Q_rad_f_total = Q_rad_f_p + Q_rad_f_amb;
-        
+    %fprintf(' m_dot_region1_Mg: %.3e \n', m_dot_region1_Mg);
     Q_sens_2 = m_dot_region2_total * cp_gas * T_f;
     Q_cond_left = m_dot_region1_total * cp_gas * (T_f - T_p) + B;
-    C = Q_reac_f_to_flame- Q_rad_f_total - abs(Q_cond_left);
+    C = -(Q_reac_f_to_flame- Q_rad_f_total - Q_cond_left);
     %%%%   Q_cond_right_1 = Q_cond_right + m_dot_region2_total * cp_gas * ( T_f - T_p );
 
     % 计算B2 (物理量)
-    B2 = -C - Q_sens_2;
+    B2 = C - Q_sens_2;
     B2_calc_nd = B2 / (m_dot_region2_total * cp_gas* T_c);
     % 转换为无量纲B2
     %B2_calc_nd = B2 / T_p;
     %fprintf(' 火焰面 C : %.3e \n', C);
     % 约束B2参数
-    F(25) = relaxation * (B2_nd - B2_calc_nd)*5; % 原来是F(29)
+    F(25) = relaxation * (B2_nd - B2_calc_nd)*0.01; % 原来是F(29)
     
     %%%%%%远场组分守恒
-    F(26) = relaxation * (Y_CO2_inf + Y_CO_inf + Y_Mg_inf + Y_MgO_inf - 1) ; % 原来是F(30)
+    F(26) = relaxation * (Y_CO2_inf + Y_CO_inf + Y_Mg_inf + Y_MgO_inf - 1) ; 
     
     % 化学计量通量平衡 (无量纲)
     molar_ratio_Mg = Y_Mg_frac1 * m_dot_region1_total / mw.Mg.molar_mass;
@@ -1315,12 +1267,12 @@ function F = equations_system(X, env)
     % 原有方程
     F(27) = relaxation * (molar_ratio_Mg - molar_ratio_CO_total); %
     F(28) = relaxation * (molar_ratio_Mg + molar_ratio_CO2); % 
-    F(29) = relaxation * (Y_Mg_region0_surf + Y_CO_region0_surf - 1 )*30; % 
+    F(29) = relaxation * (Y_Mg_region0_surf + Y_CO_region0_surf - 1 )*10; % 
  
     %F(30) = relaxation * (Y_Mg_region0_surf+Y_CO_region0_surf - 1) * 20;  
-    F(30) = relaxation * (Y_Mg_core + Y_CO_core - 1) *10; % 原来是F(34)
-    F(31) = relaxation * (Y_Mg_frac0_cal- Y_Mg_frac0)*20 ;
-    F(32) = relaxation * (Y_CO_frac0_cal- Y_CO_frac0)*15 ;
+    F(30) = relaxation * (Y_Mg_core + Y_CO_core - 1) ; % 原来是F(34)
+    F(31) = relaxation * (Y_Mg_frac0_cal- Y_Mg_frac0);
+    F(32) = relaxation * (Y_CO_frac0_cal- Y_CO_frac0);
     
             
     
@@ -2077,7 +2029,8 @@ end
         rate_info.m_dot_CO = 0;
     end
 
-    function plot_radial_distributions(r_p, r_f, r_inf, Pe_m_region1, coeffs_0, coeffs_1, coeffs_2, T_p, T_c, params, physicalModel,pState)
+    function plot_radial_distributions(r_p, r_f, r_inf, Pe_m_region1, coeffs_0, coeffs_1, coeffs_2, T_p, T_c, params, physicalModel,pState,cp_gas...
+                        ,k_gas,rho_D_gas,porosity,tortuosity,D_ox_gas,ratio_k_cp_ox,ratio_k_cp_gas,k_ox,k_ox_gas)
         % 使用持久变量保存图形句柄
         persistent fig_handle;
         
@@ -2128,32 +2081,7 @@ end
         Y_CO = zeros(n_pts, 1);     % CO质量分数
         Y_MgO = zeros(n_pts, 1);    % MgO质量分数
     
-        cp_gas = params.cp_gas;  % 气体比热估计值 [J/(kg·K)]
-        % co2  2000K
-        k_gas = params.k_gas;  % 气体导热系数估计值 [W/(m·K)]
-        rho_D_gas = params.rho_D_gas;
         mw = params.materials;
-        porosity = params.material_properties.oxide_porosity;
-        tortuosity = params.material_properties.oxide_tortuosity;
-
-        D_eff = rho_D_gas* porosity / tortuosity;
-        D_eff = rho_D_gas* porosity / tortuosity / porosity ;
-
-        %k_eff = 25.1; % 简化的有效导热率
-        k_eff = params.k_eff;
-        k_ox = k_gas* porosity + (1-porosity)* k_solid;
-
-        %k_ox = k_gas ;
-        k_ox_gas = k_ox* porosity;
-        %k_ox_gas = k_gas ;
-        k_ox_gas = k_gas* porosity;
-       % k_ox_gas = k_gas * porosity;
-        %k_ox_gas = k_solid* exp(-1.5*porosity/(1-porosity));
-       % k_ox_gas = k_gas* porosity ;
-        D_ox_gas = D_eff *porosity*5*5 ;
-        D_ox_gas = D_eff *porosity*5;
-        ratio_k_cp_ox = D_ox_gas ;
-        ratio_k_cp_gas = rho_D_gas;
         %D_ox_gas = D_eff *10 ;
         %D_ox_gas = D_eff ;
         % 计算区域1和区域2的总质量流率比例
@@ -2210,12 +2138,12 @@ end
         
         % 热传导佩克莱数
         Pe_cp_region0 = m_dot_region0_total * cp_gas / (4 * pi * r_c * k_ox_gas);
-        Pe_cp_region0 = m_dot_region0_total  / (4 * pi * r_c * ratio_k_cp_ox);
+        %Pe_cp_region0 = m_dot_region0_total  / (4 * pi * r_c * ratio_k_cp_ox);
         %Pe_cp_region0 = m_dot_region0_total  / (4 * pi * r_c * ratio_k_cp_ox);
         Pe_cp_region1 = m_dot_region1_total * cp_gas / (4 * pi * r_c * k_gas);
-        Pe_cp_region1 = m_dot_region1_total / (4 * pi * r_c * ratio_k_cp_gas);
+        %Pe_cp_region1 = m_dot_region1_total / (4 * pi * r_c * ratio_k_cp_gas);
         Pe_cp_region2 = m_dot_region2_total * cp_gas / (4 * pi * r_c * k_gas);
-        Pe_cp_region2 = m_dot_region2_total / (4 * pi * r_c * ratio_k_cp_gas);
+        %Pe_cp_region2 = m_dot_region2_total / (4 * pi * r_c * ratio_k_cp_gas);
         
         % 记录有效远场边界索引
         effective_boundary_idx = n_pts;

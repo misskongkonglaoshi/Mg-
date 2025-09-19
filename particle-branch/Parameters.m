@@ -168,7 +168,7 @@
 
         r_inf_particle = 10 ;
         % 控制标志
-        visualization = true;            % 是否可视化结果
+        visualization = false;            % 是否可视化结果
         visualize_residual = false;       % 是否可视化残差
         recordResults = true;            % 是否记录结果
         debug = true;                   % 是否开启调试模式

@@ -20,7 +20,7 @@ results = manager.solve();
 fprintf('仿真完成！\n');
 
 % 调用外部可视化函数
-%Visualization.plotResults(results);
+%Visualization.plotResults(results); 
 
 % 保存结果
 %if ~exist('results', 'dir')

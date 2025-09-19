@@ -106,7 +106,6 @@ classdef VaporizationODE < handle
                 
                 % 使用缓存的代数解直接调用求解器
                 rate_info = vaporization_solver.solve_reaction_rates(tempState, algebraic_solution_cache);
-                
                 % 更新缓存供下一时间步使用
                 if isfield(rate_info, 'algebraic_solution') && ~isempty(rate_info.algebraic_solution)
                     algebraic_solution_cache = rate_info.algebraic_solution;
@@ -207,7 +206,7 @@ classdef VaporizationODE < handle
 
             % 3. 计算半径变化率
             % 使用相同的密度参数确保一致性
-            rho_mg = obj.params.materials.Mg.density_high;
+            rho_mg = obj.params.materials.Mg.density_low;
             rho_mgo = obj.params.materials.MgO.density;
             rho_c = obj.params.materials.C.density;
 

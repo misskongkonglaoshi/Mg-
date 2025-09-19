@@ -75,7 +75,7 @@ classdef VaporizationStage < handle
                     rate_info.heat_reaction_flame = reaction_heat_value_flame;
                     rate_info.heat_reaction_total = reaction_heat_value_flame+reaction_heat_value_face;
                     rate_info.heat_reaction = rate_info.heat_reaction_total;
-                    rate_info.heat_to_particle = reaction_heat_value_face + reaction_heat_value_flame*0.5 ;
+                    rate_info.heat_to_particle = reaction_heat_value_face + reaction_heat_value_flame*0.315 ;
                 else
                     rate_info.heat_reaction_total = 0;
                     rate_info.heat_to_particle = 0 ;
@@ -100,7 +100,7 @@ classdef VaporizationStage < handle
                   %传递到颗粒表面的热量  考虑不考虑反应呢？
                 rate_info.heat_ox = rate_info.heat_total_particle - abs(rate_info.dmdt_mg)/obj.params.materials.Mg.molar_mass...
                  * obj.params.materials.Mg.L_evap_Mg;
-                rate_info.heat_ox =rate_info.heat_convection + rate_info.heat_radiation + reaction_heat_value_flame * 0.006;
+                %rate_info.heat_ox =rate_info.heat_convection + rate_info.heat_radiation + reaction_heat_value_flame * 0.006;
                 rate_info.heat_total = rate_info.heat_total_particle ;
                 %Q_Mg_evap = abs(rate_info.dmdt_mg)/obj.params.materials.Mg.molar_mass* obj.params.materials.Mg.L_evap_Mg ;
                 %fprintf('  Q_Mg_evap: %.3e \n', Q_Mg_evap);
