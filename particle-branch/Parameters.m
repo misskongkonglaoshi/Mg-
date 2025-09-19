@@ -88,7 +88,7 @@
         % 颗粒物理参数
         initial_diameter = 75.09e-6;  % 初始颗粒直径 (m)   75.09
         initial_temperature = 300;  % 初始颗粒温度 (K)
-        initial_oxide_thickness = 10e-7;  % 初始氧化层厚度 (m)，默认为100nm  10e-7
+        initial_oxide_thickness = 1e-7;  % 初始氧化层厚度 (m)，默认为100nm  10e-7
         
         % 环境参数
         ambient_temperature = 1573;  % 环境温度 (K)
@@ -176,7 +176,7 @@
         consider_oxide_break = false;     % 是否考虑氧化层破裂
         plot_radial_distributions = true ;
         visualize_realtime = true;      % 是否开启实时可视化
-        visualize_realtime_interval = 1e-4; % 实时可视化更新时间间隔(s)
+        visualize_realtime_interval =1e-4; % 实时可视化更新时间间隔(s)
         use_solution_cache = false;       % 是否启用代数方程求解缓存机制
         
         % 气相燃烧求解控制参数

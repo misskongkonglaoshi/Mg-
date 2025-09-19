@@ -162,7 +162,7 @@ function rate_info = solve_vaporization_algebraic(bvp_deps, alpha_CO, alpha_MgO,
             %            'FunctionTolerance', 1e-4, 'StepTolerance', 1e-8, 'MaxFunctionEvaluations', 10000, ...
             %            'OutputFcn', @(x,optimValues,state) monitor_progress(x,optimValues,state,solve_env1));
             options1 = optimoptions('fsolve', 'Algorithm', 'levenberg-marquardt', 'Display', 'off', 'MaxIterations', 10000, ...
-                        'FunctionTolerance', 1e-3, 'StepTolerance', 1e-4, 'MaxFunctionEvaluations', 10000, ...
+                        'FunctionTolerance', 1e-3, 'StepTolerance', 1e-5, 'MaxFunctionEvaluations', 10000, ...
                         'OutputFcn', @(x,optimValues,state) monitor_progress(x,optimValues,state,solve_env1));
                     
             % 求解简化模型
@@ -236,7 +236,7 @@ function rate_info = solve_vaporization_algebraic(bvp_deps, alpha_CO, alpha_MgO,
             solve_env2.k_ox_gas = k_ox_gas ;
             % 简化的fsolve选项
             options2 = optimoptions('fsolve', 'Algorithm', 'levenberg-marquardt','Display', 'off', 'MaxIterations', 1000000, ...
-                        'FunctionTolerance', 1e-3, 'StepTolerance', 1e-4, 'MaxFunctionEvaluations', 1000000, ...
+                        'FunctionTolerance', 1e-4, 'StepTolerance', 1e-5, 'MaxFunctionEvaluations', 1000000, ...
                         'OutputFcn', @(x,optimValues,state) monitor_progress(x,optimValues,state,solve_env2));
             
             % 使用阶段1的解作为初值
@@ -312,7 +312,7 @@ function rate_info = solve_vaporization_algebraic(bvp_deps, alpha_CO, alpha_MgO,
             solve_env3.k_ox_gas = k_ox_gas ;
             % 简化的fsolve选项
             options3 = optimoptions('fsolve','Algorithm', 'levenberg-marquardt', 'Display', 'off', 'MaxIterations', 100000, ...
-                        'FunctionTolerance', 1e-4, 'StepTolerance', 1e-6, 'MaxFunctionEvaluations', 100000, ...
+                        'FunctionTolerance', 1e-4, 'StepTolerance', 1e-5, 'MaxFunctionEvaluations', 100000, ...
                         'Algorithm', 'levenberg-marquardt', ...
                         'OutputFcn', @(x,optimValues,state) monitor_progress(x,optimValues,state,solve_env3));
             
@@ -378,6 +378,7 @@ function rate_info = solve_vaporization_algebraic(bvp_deps, alpha_CO, alpha_MgO,
         fprintf('区域特定解析解求解完成。火焰位置: %.3e m (r_f/r_p = %.2f), 蒸发速率: %.3e kg/s\n', ...
             r_f, r_f/r_p, rate_info.dmdt_mg);
         fprintf('火焰温度: %.3e K\n', T_f);
+        %stop;
         % 在成功求解后添加可选的可视化
         if exitflag3 > 0 && success
             try
@@ -1220,7 +1221,7 @@ function F = equations_system(X, env)
     F(22) = relaxation * (Y_CO2_region1_flame+Y_CO_region1_flame+Y_Mg_region1_flame+Y_MgO_region1_flame-1); % 增强组分和约束
     % 反应物耗尽
     F(23) = relaxation * Y_Mg_region1_flame  ; % 强化Mg在火焰面耗尽条件
-    F(24) = relaxation * Y_CO2_flame *10  ; % 强化火焰面CO2约束
+    F(24) = relaxation * Y_CO2_flame   ; % 强化火焰面CO2约束
     
     % 火焰面能量守恒
         
@@ -1270,7 +1271,7 @@ function F = equations_system(X, env)
     F(29) = relaxation * (Y_Mg_region0_surf + Y_CO_region0_surf - 1 )*10; % 
  
     %F(30) = relaxation * (Y_Mg_region0_surf+Y_CO_region0_surf - 1) * 20;  
-    F(30) = relaxation * (Y_Mg_core + Y_CO_core - 1) ; % 原来是F(34)
+    F(30) = relaxation * (Y_Mg_core + Y_CO_core - 1)*10 ; % 原来是F(34)
     F(31) = relaxation * (Y_Mg_frac0_cal- Y_Mg_frac0);
     F(32) = relaxation * (Y_CO_frac0_cal- Y_CO_frac0);
     

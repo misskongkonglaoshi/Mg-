@@ -253,7 +253,9 @@ classdef VaporizationODE < handle
             if isfield(rate_info, 'heat_ox')
                 C_oxide = obj.calculate_oxide_heat_capacity(y);
                 if C_oxide > 1e-10
+                    DT = obj.params.vaporization_fixed_timestep;
                     dydt(6) = rate_info.heat_ox / C_oxide; % 温度变化率
+                    fprintf('t=%.4f s 温度变化率: %.3e K/s\n', t, dydt(6)*DT);
                 else
                     dydt(6) = 0;
                 end
@@ -354,10 +356,10 @@ classdef VaporizationODE < handle
                     % 实时可视化颗粒状态
                     if obj.visualize_realtime
                         % 限制可视化更新频率，避免过度绘图导致性能问题
-                        if t(end) - obj.last_visual_update_time > 1e-4
+                        %if t(end) - obj.last_visual_update_time > 1e-4
                             obj.visualize_realtime_state(t(end), y(:,end));
                             obj.last_visual_update_time = t(end);
-                        end
+                        %end
                     end
                     
                 case 'done'

@@ -24,7 +24,7 @@ fprintf('仿真完成！\n');
 
 % 保存结果
 %if ~exist('results', 'dir')
-%    mkdir('results');
+%    mkdir('results'); 
 %end
 %save('results/simulation_results.mat', 'results');
 % 使用Visualization类的专用方法导出CSV，而不是直接转换结构体
