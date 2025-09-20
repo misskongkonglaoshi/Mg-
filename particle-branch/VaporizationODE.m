@@ -150,12 +150,7 @@ classdef VaporizationODE < handle
         function dydt = vaporization_ode(obj, t, y, solver, T_p_const)
             % 气相燃烧阶段ODE系统右侧函数
             % y(1)=m_mg, y(2)=m_mgo, y(3)=m_c, y(4)=r_c, y(5)=r_p, y(6)=T_p
-            
-            % 为防止数值问题，增加保护性判断
-            if y(1) < 1e-15 || y(4) < 1e-9 || y(5) < 1e-9
-                dydt = zeros(6,1);
-                return;
-            end
+  
 
             % 1. 从当前状态向量y构建一个临时的ParticleState对象
             tempState = obj.build_temp_state_from_vector(y, T_p_const);
@@ -212,13 +207,13 @@ classdef VaporizationODE < handle
 
             % 核心半径变化率 (基于Mg消耗)
             dVdt_mg = dmdt_mg / rho_mg;
-            drc_dt = dVdt_mg / (4 * pi * y(4)^2 + eps);
+            drc_dt = dVdt_mg / (4 * pi * y(4)^2 );
 
             % 外部颗粒半径变化率 (基于产物沉积)
             dVdt_mgo = dmdt_mgo / rho_mgo;
             dVdt_c = dmdt_c / rho_c;
             dVdt_product_deposition = dVdt_mgo + dVdt_c;
-            drp_dt = dVdt_product_deposition / (4 * pi * y(5)^2 + eps);
+            drp_dt = dVdt_product_deposition / (4 * pi * y(5)^2 );
 
             % 4. 组合成完整的导数向量
             dydt = [dmdt_mg; dmdt_mgo; dmdt_c; drc_dt; drp_dt; dTp_dt];
@@ -239,7 +234,7 @@ classdef VaporizationODE < handle
             % 核心半径变化率
             rho_mg = obj.params.materials.Mg.density_low;
             dVdt_mg = dydt(1) / rho_mg;
-            dydt(4) = dVdt_mg / (4 * pi * y(4)^2 + eps); % r_c变化率
+            dydt(4) = dVdt_mg / (4 * pi * y(4)^2 ); % r_c变化率
             
             % 外部半径变化率
             rho_mgo = obj.params.materials.MgO.density;
@@ -247,7 +242,7 @@ classdef VaporizationODE < handle
             dVdt_mgo = dydt(2) / rho_mgo;
             dVdt_c = dydt(3) / rho_c;
             dVdt_product_deposition = dVdt_mgo + dVdt_c;
-            dydt(5) = dVdt_product_deposition / (4 * pi * y(5)^2 + eps); % r_p变化率
+            dydt(5) = dVdt_product_deposition / (4 * pi * y(5)^2 ); % r_p变化率
             
             % 温度变化率计算
             if isfield(rate_info, 'heat_ox')

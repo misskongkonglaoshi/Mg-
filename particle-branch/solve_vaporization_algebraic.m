@@ -162,7 +162,7 @@ function rate_info = solve_vaporization_algebraic(bvp_deps, alpha_CO, alpha_MgO,
             %            'FunctionTolerance', 1e-4, 'StepTolerance', 1e-8, 'MaxFunctionEvaluations', 10000, ...
             %            'OutputFcn', @(x,optimValues,state) monitor_progress(x,optimValues,state,solve_env1));
             options1 = optimoptions('fsolve', 'Algorithm', 'levenberg-marquardt', 'Display', 'off', 'MaxIterations', 10000, ...
-                        'FunctionTolerance', 1e-3, 'StepTolerance', 1e-5, 'MaxFunctionEvaluations', 10000, ...
+                        'FunctionTolerance', 2e-3, 'StepTolerance', 1e-4, 'MaxFunctionEvaluations', 10000, ...
                         'OutputFcn', @(x,optimValues,state) monitor_progress(x,optimValues,state,solve_env1));
                     
             % 求解简化模型
@@ -236,7 +236,7 @@ function rate_info = solve_vaporization_algebraic(bvp_deps, alpha_CO, alpha_MgO,
             solve_env2.k_ox_gas = k_ox_gas ;
             % 简化的fsolve选项
             options2 = optimoptions('fsolve', 'Algorithm', 'levenberg-marquardt','Display', 'off', 'MaxIterations', 1000000, ...
-                        'FunctionTolerance', 1e-4, 'StepTolerance', 1e-5, 'MaxFunctionEvaluations', 1000000, ...
+                        'FunctionTolerance', 1e-3, 'StepTolerance', 1e-4, 'MaxFunctionEvaluations', 1000000, ...
                         'OutputFcn', @(x,optimValues,state) monitor_progress(x,optimValues,state,solve_env2));
             
             % 使用阶段1的解作为初值
@@ -312,7 +312,7 @@ function rate_info = solve_vaporization_algebraic(bvp_deps, alpha_CO, alpha_MgO,
             solve_env3.k_ox_gas = k_ox_gas ;
             % 简化的fsolve选项
             options3 = optimoptions('fsolve','Algorithm', 'levenberg-marquardt', 'Display', 'off', 'MaxIterations', 100000, ...
-                        'FunctionTolerance', 1e-4, 'StepTolerance', 1e-5, 'MaxFunctionEvaluations', 100000, ...
+                        'FunctionTolerance', 1e-4, 'StepTolerance', 1e-6, 'MaxFunctionEvaluations', 100000, ...
                         'Algorithm', 'levenberg-marquardt', ...
                         'OutputFcn', @(x,optimValues,state) monitor_progress(x,optimValues,state,solve_env3));
             
@@ -378,7 +378,9 @@ function rate_info = solve_vaporization_algebraic(bvp_deps, alpha_CO, alpha_MgO,
         fprintf('区域特定解析解求解完成。火焰位置: %.3e m (r_f/r_p = %.2f), 蒸发速率: %.3e kg/s\n', ...
             r_f, r_f/r_p, rate_info.dmdt_mg);
         fprintf('火焰温度: %.3e K\n', T_f);
-        %stop;
+        if m_mg / rate_info.dmdt_mg > 0.005
+            fprintf('警告: 蒸发速率与质量不匹配，m_mg/dmdt_mg = %.3e\n', m_mg / rate_info.dmdt_mg);
+        end
         % 在成功求解后添加可选的可视化
         if exitflag3 > 0 && success
             try
@@ -413,7 +415,7 @@ function X0 = generate_initial_guess(m_dot_total,r_f, Pe_m, r_p, r_c,r_inf, T_p,
     % 为所有未知数生成无量纲化的初始猜测向量
     % 注意：无量纲化基准已改为金属核心半径r_c和金属核心温度T_c
     T_f_guess = 2200 ;
-    k = 0.3;
+    k = 0.2;
     % 气体物性的无量纲参数     co2  60 j/mol/k
     % 气体比热估计值 [J/(kg·K)]
     % co2  2000K
@@ -464,7 +466,7 @@ function X0 = generate_initial_guess(m_dot_total,r_f, Pe_m, r_p, r_c,r_inf, T_p,
 
     % 组分质量流率相对于总质量流率
         alfa_mg = 1.5;    % Mg比例
-        alfa_co=  -0.2;   % CO比例
+        alfa_co=  -0.8;   % CO比例
         alfa_co2 = 0.0;   % CO2比例
         alfa_mgo = -0.3;  % MgO比例
         m_dot_region1_total = m_dot_total;
@@ -812,7 +814,7 @@ function F = equations_system(X, env)
     % 区域1: Y(r) = (Y_surf - Y_frac) * (exp(Pe_m * ((1/r_p_nd) - (1/r_nd))) - 1) + Y_surf
     % 区域2: Y(r) = (Y_flame - Y_frac) * (exp(Pe_m * ((1/r_f_nd) - (1/r_nd))) - 1) + Y_flame
    
-    k = 0.3;
+    k = 0.15;
     % 提取求解环境
     bvp_deps = env.bvp_deps;
     simplified_mode = env.simplified_mode;
@@ -1051,8 +1053,8 @@ function F = equations_system(X, env)
     F(1) = relaxation * (Y_T_core_nd - 1.0)*10;  % BC 1: 核心表面温度为沸点(无量纲为1.0)
     F(2) = relaxation * (Y_Mg_core - Y_Mg_theory)*5;
     F(3) = relaxation * (Y_T_surf_nd - T_region0_surf)*10;  % 温度连续
-    F(4) = relaxation * (Y_Mg_region0_surf - Y_Mg_surf)*5;  % Mg连续
-    F(5) = relaxation * (Y_CO_region0_surf - Y_CO_surf)*5;  % CO连续
+    F(4) = relaxation * (Y_Mg_region0_surf - Y_Mg_surf)*10;  % Mg连续
+    F(5) = relaxation * (Y_CO_region0_surf - Y_CO_surf)*10;  % CO连续
     F(6) = relaxation * Y_MgO_surf*10 ;  % 氧化层内无MgO气态组分
     F(7) = relaxation * Y_CO2_surf ;  % 氧化层内无CO2气态组分
 
@@ -1201,7 +1203,7 @@ function F = equations_system(X, env)
     F(13) = relaxation * Y_MgO_inf;      % 增强MgO约束
     F(14) = relaxation * Y_Mg_inf;      % 强化远场Mg约束
     % F(15) = relaxation * (Y_CO2_inf-1) ;  % 强化远场CO2约束
-    F(15) = relaxation * (Y_CO2_inf-1);  % 强化远场CO2约束
+    F(15) = relaxation * (Y_CO2_inf-1)*20;  % 强化远场CO2约束
     %fprintf('  Y_CO2_inf: %.3e \n', Y_CO2_inf);
     %fprintf('  Y_Mg_flame: %.3e \n', Y_Mg_flame);
     % --- 组4: 火焰面界面条件 (r = r_f) ---
@@ -1218,10 +1220,10 @@ function F = equations_system(X, env)
     F(20) = relaxation * (Y_CO_region1_flame-Y_CO_flame); % 增强组分连续
     % 火焰面组分和为1
     F(21) = relaxation * (Y_CO_flame + Y_MgO_flame + Y_Mg_flame + Y_CO2_flame - 1.0); % 增强组分和约束
-    F(22) = relaxation * (Y_CO2_region1_flame+Y_CO_region1_flame+Y_Mg_region1_flame+Y_MgO_region1_flame-1); % 增强组分和约束
+    F(22) = relaxation * (Y_CO2_region1_flame+Y_CO_region1_flame+Y_Mg_region1_flame+Y_MgO_region1_flame-1)*10; % 增强组分和约束
     % 反应物耗尽
-    F(23) = relaxation * Y_Mg_region1_flame  ; % 强化Mg在火焰面耗尽条件
-    F(24) = relaxation * Y_CO2_flame   ; % 强化火焰面CO2约束
+    F(23) = relaxation * Y_Mg_region1_flame*10; % 强化Mg在火焰面耗尽条件
+    F(24) = relaxation * Y_CO2_flame *20  ; % 强化火焰面CO2约束
     
     % 火焰面能量守恒
         
@@ -1268,7 +1270,7 @@ function F = equations_system(X, env)
     % 原有方程
     F(27) = relaxation * (molar_ratio_Mg - molar_ratio_CO_total); %
     F(28) = relaxation * (molar_ratio_Mg + molar_ratio_CO2); % 
-    F(29) = relaxation * (Y_Mg_region0_surf + Y_CO_region0_surf - 1 )*10; % 
+    F(29) = relaxation * (Y_Mg_region0_surf + Y_CO_region0_surf - 1 )*30; % 
  
     %F(30) = relaxation * (Y_Mg_region0_surf+Y_CO_region0_surf - 1) * 20;  
     F(30) = relaxation * (Y_Mg_core + Y_CO_core - 1)*10 ; % 原来是F(34)
