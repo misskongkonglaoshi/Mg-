@@ -176,7 +176,7 @@
         consider_oxide_break = false;     % 是否考虑氧化层破裂
         plot_radial_distributions = true ;
         visualize_realtime = true;      % 是否开启实时可视化
-        visualize_realtime_interval =1e-4; % 实时可视化更新时间间隔(s)
+        visualize_realtime_interval = 1e-4; % 实时可视化更新时间间隔(s)
         use_solution_cache = false;       % 是否启用代数方程求解缓存机制
         
         % 气相燃烧求解控制参数

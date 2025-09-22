@@ -230,7 +230,9 @@ classdef VaporizationODE < handle
             dydt(2) = rate_info.dmdt_mgo;    % MgO质量变化率
             dydt(3) = rate_info.dmdt_c;      % C质量变化率
            
-  
+            if dydt(1) < 1e-7
+                %stop;
+            end
             % 核心半径变化率
             rho_mg = obj.params.materials.Mg.density_low;
             dVdt_mg = dydt(1) / rho_mg;

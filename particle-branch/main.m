@@ -46,12 +46,12 @@ if isfield(results, 'mass_mg') && isfield(results, 'mass_mgo')
     fprintf('最终Mg质量: %.4e kg\n', results.mass_mg(end));
     fprintf('Mg消耗量: %.2f%%\n', (1 - results.mass_mg(end)/results.mass_mg(1)) * 100);
     
-    fprintf('初始MgO质量: %.8e kg\n', results.mass_mgo(1));
-    fprintf('最终MgO质量: %.4e kg\n', results.mass_mgo(end));
-    fprintf('MgO增长量: %.2f%%\n', (results.mass_mgo(end)/results.mass_mgo(1) - 1) * 100);
+    %fprintf('初始MgO质量: %.8e kg\n', results.mass_mgo(1));
+    %fprintf('最终MgO质量: %.4e kg\n', results.mass_mgo(end));
+    %fprintf('MgO增长量: %.2f%%\n', (results.mass_mgo(end)/results.mass_mgo(1) - 1) * 100);
 
-    fprintf('火焰温度: %.6f K\n', results.flame_temperature(1));
-    fprintf('初始Mg质量: %.4e kg\n', results.mass_mg(1));
+    %fprintf('火焰温度: %.6f K\n', results.flame_temperature(1));
+   % fprintf('初始Mg质量: %.4e kg\n', results.mass_mg(1));
 end
 
 % 打印各阶段时间
