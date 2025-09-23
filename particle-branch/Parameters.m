@@ -78,7 +78,7 @@
             'nu_oxide', 0.25, ...           % 氧化镁泊松比
             'oxide_limit_stress', 300e6, ... % 氧化层极限应力 (Pa)
             'oxide_porosity', 0.2, ...      % 氧化层孔隙率
-            'oxide_tortuosity', 5, ...    % 氧化层弯曲度因子  2.5
+            'oxide_tortuosity',5, ...    % 氧化层弯曲度因子  2.5
             'k_solid_MgO', 30, ...          % MgO导热系数(W/m/K)
             'k_solid_C', 100, ...           % C导热系数(W/m/K)
             'emissivity_oxide', 0.9 ...     % 氧化层辐射率
@@ -175,7 +175,7 @@
         current_stage = '';              % 当前阶段标记
         consider_oxide_break = false;     % 是否考虑氧化层破裂
         plot_radial_distributions = true ;
-        visualize_realtime = true;      % 是否开启实时可视化
+        visualize_realtime = false;      % 是否开启实时可视化
         visualize_realtime_interval = 1e-4; % 实时可视化更新时间间隔(s)
         use_solution_cache = false;       % 是否启用代数方程求解缓存机制
         

@@ -162,7 +162,7 @@ function rate_info = solve_vaporization_algebraic(bvp_deps, alpha_CO, alpha_MgO,
             %            'FunctionTolerance', 1e-4, 'StepTolerance', 1e-8, 'MaxFunctionEvaluations', 10000, ...
             %            'OutputFcn', @(x,optimValues,state) monitor_progress(x,optimValues,state,solve_env1));
             options1 = optimoptions('fsolve', 'Algorithm', 'levenberg-marquardt', 'Display', 'off', 'MaxIterations', 10000, ...
-                        'FunctionTolerance', 1e-4, 'StepTolerance', 1e-3, 'MaxFunctionEvaluations', 10000, ...
+                        'FunctionTolerance', 1e-5, 'StepTolerance', 1e-3, 'MaxFunctionEvaluations', 10000, ...
                         'OutputFcn', @(x,optimValues,state) monitor_progress(x,optimValues,state,solve_env1));
                     
             % 求解简化模型
@@ -236,7 +236,7 @@ function rate_info = solve_vaporization_algebraic(bvp_deps, alpha_CO, alpha_MgO,
             solve_env2.k_ox_gas = k_ox_gas ;
             % 简化的fsolve选项
             options2 = optimoptions('fsolve', 'Algorithm', 'levenberg-marquardt','Display', 'off', 'MaxIterations', 1000000, ...
-                        'FunctionTolerance', 1e-4, 'StepTolerance', 1e-5, 'MaxFunctionEvaluations', 1000000, ...
+                        'FunctionTolerance', 1e-5, 'StepTolerance', 1e-5, 'MaxFunctionEvaluations', 1000000, ...
                         'OutputFcn', @(x,optimValues,state) monitor_progress(x,optimValues,state,solve_env2));
             
             % 使用阶段1的解作为初值
@@ -415,7 +415,7 @@ function X0 = generate_initial_guess(m_dot_total,r_f, Pe_m, r_p, r_c,r_inf, T_p,
     % 为所有未知数生成无量纲化的初始猜测向量
     % 注意：无量纲化基准已改为金属核心半径r_c和金属核心温度T_c
     T_f_guess = 2400 ;
-    k = 0;
+    k = 0.315;
     % 气体物性的无量纲参数     co2  60 j/mol/k
     % 气体比热估计值 [J/(kg·K)]
     % co2  2000K    
@@ -816,7 +816,7 @@ function F = equations_system(X, env)
     % 区域1: Y(r) = (Y_surf - Y_frac) * (exp(Pe_m * ((1/r_p_nd) - (1/r_nd))) - 1) + Y_surf
     % 区域2: Y(r) = (Y_flame - Y_frac) * (exp(Pe_m * ((1/r_f_nd) - (1/r_nd))) - 1) + Y_flame
    
-    k = 0.05;
+    k = 0.315;
     % 提取求解环境
     bvp_deps = env.bvp_deps;
     simplified_mode = env.simplified_mode;
@@ -841,6 +841,8 @@ function F = equations_system(X, env)
     pState = bvp_deps.pState;
     physicalModel = bvp_deps.physicalModel;
   
+    alpha_CO = env.alpha_CO ;
+    alpha_MgO = env.alpha_MgO ;
     T_amb = params.ambient_temperature;
     mw = params.materials ;
     
@@ -958,6 +960,7 @@ function F = equations_system(X, env)
 
     m_dot_region0_Mg = m_dot_region1_Mg;
     m_dot_region0_CO = -(abs(m_dot_region1_CO) - m_dot_surface_CO);
+    %m_dot_region0_CO =m_dot_region1_CO;
     m_dot_region0_total = m_dot_region0_Mg + m_dot_region0_CO;
 
    
@@ -1032,7 +1035,7 @@ function F = equations_system(X, env)
     %r_inf_nd = 10 ;
     %r_inf_nd = params.r_inf_nd; 
     % 初始化残差向量 (34个方程: 8个新方程 + 原有26个方程)
-    F = zeros(36, 1);  % 减少到32个方程
+    F = zeros(38, 1);  % 减少到32个方程
     % --- 组0: 核心表面边界条件 (r = r_c) ---
      
     % BC 2: 表面Mg质量分数由克-克方程在沸点下的情况决定
@@ -1106,7 +1109,7 @@ function F = equations_system(X, env)
     %fprintf('  B0_nd: %.3e \n', B0_nd);
     %fprintf('  B0_calc_nd: %.3e \n', B0_calc_nd);
     %fprintf(' MG表面 Q_cod_region0: %.3e \n', Q_cod_region0);
-    F(8) = relaxation * (B0_nd - B0_calc_nd)*0.01;
+    F(8) = relaxation * (B0_nd - B0_calc_nd);
 
     % --- 组2: 颗粒表面边界条件 (r = r_p) ---
     % 注意：不再强制表面温度等于沸点，而是通过连续性条件确定
@@ -1169,7 +1172,7 @@ function F = equations_system(X, env)
     %fprintf('  B1_nd: %.3e \n', B1_nd);
     %fprintf('  B1_calc_nd: %.3e \n', B1_calc_nd);
     % 约束B1参数
-    F(10) = relaxation * (B1_nd - B1_calc_nd) * 0.01;  % 原来是F(14)，现在是F(12)
+    F(10) = relaxation * (B1_nd - B1_calc_nd)*1.0 ;  % 原来是F(14)，现在是F(12)
 
 
     exp_arg_Y_region1 = Pe_m_region1 * (1/r_p_nd - 1/r_f_nd);
@@ -1220,20 +1223,20 @@ function F = equations_system(X, env)
     %fprintf('  T_flame_region1: %.3e \n', T_flame_region1 * T_c);
     %fprintf('  Y_T_flame_nd: %.3e \n', Y_T_flame_nd);
     %fprintf('  T_flame_region1: %.3e \n', T_flame_region1 *T_c);
-    %fprintf('  Y_CO2_flame: %.3e \n', Y_CO2_flame );
+    %fprintf('  Y_Mg_region1_flame: %.3e \n', Y_Mg_region1_flame );
     F(16) = relaxation * (T_flame_region1-Y_T_flame_nd);  % 增强温度连续性
     F(17) = relaxation * (Y_CO2_region1_flame-Y_CO2_flame); % 增强组分连续
     %fprintf(' 求解过程中一区计算CO2浓度: %.3e \n', Y_CO2_region1_flame);
     %fprintf(' 求解过程中火焰面CO2浓度: %.3e \n', Y_CO2_flame);
-    F(18) = relaxation *(Y_Mg_region1_flame-Y_Mg_flame); % 增强组分连续
-    F(19) = relaxation * (Y_MgO_region1_flame-Y_MgO_flame); % 增强组分连续
-    F(20) = relaxation * (Y_CO_region1_flame-Y_CO_flame); % 增强组分连续
+    F(18) = relaxation *(Y_Mg_region1_flame-Y_Mg_flame)*10; % 增强组分连续
+    F(19) = relaxation * (Y_MgO_region1_flame-Y_MgO_flame)*10; % 增强组分连续
+    F(20) = relaxation * (Y_CO_region1_flame-Y_CO_flame)*10; % 增强组分连续
     % 火焰面组分和为1
     F(21) = relaxation * (Y_CO_flame + Y_MgO_flame + Y_Mg_flame + Y_CO2_flame - 1.0); % 增强组分和约束
     F(22) = relaxation * (Y_CO2_region1_flame+Y_CO_region1_flame+Y_Mg_region1_flame+Y_MgO_region1_flame-1); % 增强组分和约束
     % 反应物耗尽
-    F(23) = relaxation * Y_Mg_region1_flame*20; % 强化Mg在火焰面耗尽条件
-    F(24) = relaxation * Y_CO2_flame*20 ; % 强化火焰面CO2约束
+    F(23) = relaxation * Y_Mg_region1_flame*30; % 强化Mg在火焰面耗尽条件
+    F(24) = relaxation * Y_CO2_flame*30 ; % 强化火焰面CO2约束
     
     % 火焰面能量守恒
         
@@ -1290,8 +1293,13 @@ function F = equations_system(X, env)
     F(34) = relaxation * (Y_CO_frac2_cal- Y_CO_frac2);
     F(35) = relaxation * (Y_MgO_frac2_cal- Y_MgO_frac2);
     F(36) = relaxation * (Y_CO2_frac2_cal- Y_CO2_frac2);
-            
-    
+    X1 = abs(m_dot_region1_CO)/(abs(m_dot_region1_CO)+abs(m_dot_region2_CO)) ;
+    X2 = abs(m_dot_region1_MgO)/(abs(m_dot_region1_MgO)+abs(m_dot_region2_MgO)) ;
+    %fprintf('  X1: %.3e,X2 %.3e: \n', X1,X2);
+    %F(37) = relaxation * (X1- 0.001);
+    %F(37) = relaxation * (X1- 0.15);
+    %F(38) = relaxation * (X2- 0.001);        
+    %F(38) = relaxation * (X2- 0.15);    
 end
 
 function [coeffs_0, coeffs_1, coeffs_2] = extract_solution_coeffs(X)
@@ -1335,16 +1343,32 @@ function [coeffs_0, coeffs_1, coeffs_2] = extract_solution_coeffs(X)
     coeffs_2.Y_MgO_flame = X(27);   % 火焰面MgO质量分数
     coeffs_2.Y_MgO_frac = X(28);    % 区域2 MgO在总质量流率中的比例
    
-        % fprintf(' coeffs_0.Y_T_core: %.3e \n', coeffs_0.Y_T_core);
-         fprintf(' coeffs_0.Y_Mg_frac: %.3e \n', coeffs_0.Y_Mg_frac);
-        % fprintf(' coeffs_1.Y_Mg_surf: %.3e \n', coeffs_1.Y_Mg_surf);
-        % fprintf(' coeffs_1.Y_MgO_frac: %.3e \n', coeffs_1.Y_MgO_frac);
-        % fprintf(' coeffs_2.Y_T_flame: %.3e \n', coeffs_2.Y_T_flame);
-        % fprintf(' coeffs_0.Y_T_core: %.3e \n', coeffs_0.Y_T_core);
-        % fprintf(' coeffs_2.Y_Mg_flame: %.3e \n', coeffs_2.Y_Mg_flame);
-        % fprintf(' coeffs_2.Y_Mg_frac: %.3e \n', coeffs_2.Y_Mg_frac);
-        % fprintf(' coeffs_2.Y_CO2_flame: %.3e \n', coeffs_2.Y_CO2_flame);
-        % fprintf(' coeffs_2.Y_CO2_frac: %.3e \n', coeffs_2.Y_CO2_frac);
+        fprintf(' coeffs_0.Y_T_core: %.3e \n', coeffs_0.Y_T_core);
+        fprintf(' coeffs_0.Y_Mg_core: %.3e \n', coeffs_0.Y_Mg_core);
+        fprintf(' coeffs_0.Y_CO_core: %.3e \n', coeffs_0.Y_CO_core);
+        fprintf(' coeffs_0.Y_Mg_frac: %.3e \n', coeffs_0.Y_Mg_frac);
+        fprintf(' coeffs_0.Y_CO_frac: %.3e \n', coeffs_0.Y_CO_frac);
+
+        fprintf(' coeffs_1.Y_T_surf: %.3e \n', coeffs_1.Y_T_surf);
+        fprintf(' coeffs_1.Y_Mg_surf: %.3e \n', coeffs_1.Y_Mg_surf);
+        fprintf(' coeffs_1.Y_Mg_frac: %.3e \n', coeffs_1.Y_Mg_frac);
+        fprintf(' coeffs_1.Y_CO_surf: %.3e \n', coeffs_1.Y_CO_surf);
+        fprintf(' coeffs_1.Y_CO_frac: %.3e \n', coeffs_1.Y_CO_frac);
+        fprintf(' coeffs_1.Y_CO2_surf: %.3e \n', coeffs_1.Y_CO2_surf);
+        fprintf(' coeffs_1.Y_CO2_frac: %.3e \n', coeffs_1.Y_CO2_frac);
+        fprintf(' coeffs_1.Y_MgO_surf: %.3e \n', coeffs_1.Y_MgO_surf);
+        fprintf(' coeffs_1.Y_MgO_frac: %.3e \n', coeffs_1.Y_MgO_frac);
+
+        fprintf(' coeffs_2.Y_T_flame: %.3e \n', coeffs_2.Y_T_flame);
+        fprintf(' coeffs_2.Y_CO_flame: %.3e \n', coeffs_2.Y_CO_flame);
+        fprintf(' coeffs_2.Y_CO_frac: %.3e \n', coeffs_2.Y_CO_frac);
+        fprintf(' coeffs_2.Y_CO2_flame: %.3e \n', coeffs_2.Y_CO2_flame);
+        fprintf(' coeffs_2.Y_CO2_frac: %.3e \n', coeffs_2.Y_CO2_frac);
+        fprintf(' coeffs_2.Y_MgO_flame: %.3e \n', coeffs_2.Y_MgO_flame);
+        fprintf(' coeffs_2.Y_MgO_frac: %.3e \n', coeffs_2.Y_MgO_frac);
+        fprintf(' coeffs_2.Y_Mg_flame: %.3e \n', coeffs_2.Y_Mg_flame);
+        fprintf(' coeffs_2.Y_Mg_frac: %.3e \n', coeffs_2.Y_Mg_frac);
+        
         % 
 end
 
@@ -1989,18 +2013,26 @@ end
         max_residual = max(abs(fval));
         [max_val, max_idx] = max(abs(fval));
         % 提取关键物理量
+
+        rho_D_gas = solve_env.rho_D_gas;
+
+
         r_f_nd = X(1);
         Pe_m = X(2);
         Y_T_surf = X(3);
         Y_T_flame = X(13);
+        Y_Mg_frac1 = X(12);
+       
         T_p = solve_env.T_p;
         T_c = solve_env.T_c;
         r_c = solve_env.r_c;
         r_p = solve_env.r_p;
         r_f = r_f_nd * r_c;
         r_f_nd = r_f / r_p;
+        m_dot_region1_total = Pe_m * (4 * pi * r_c * rho_D_gas) ;
+        m_dot_region1_Mg = Y_Mg_frac1 * m_dot_region1_total;
         %fprintf('T_surf: %.5e\n', Y_T_surf*1366);
-        %fprintf('T_flame: %.5e\n', Y_T_flame*1366);
+        fprintf('m_dot_region1_Mg: %.5e\n', m_dot_region1_Mg);
         %fprintf('表面温差: %.5f K\n', (Y_T_surf-1)*1366);
         fprintf('r_f_nd(相对于颗粒表面的): %.5e\n', r_f_nd);
         % 基本物理合理性检查
@@ -2136,6 +2168,7 @@ end
         % 计算各组分物理质量流率
         m_dot_region0_Mg = m_dot_region1_Mg ;
         m_dot_region0_CO = -(abs(m_dot_region1_CO) - m_dot_surface_CO);
+        %m_dot_region0_CO =m_dot_region1_CO;
         m_dot_region0_total = m_dot_region0_Mg + m_dot_region0_CO;
         
         
@@ -2161,6 +2194,31 @@ end
         Pe_cp_region2 = m_dot_region2_total * cp_gas / (4 * pi * r_c * k_gas);
         %Pe_cp_region2 = m_dot_region2_total / (4 * pi * r_c * ratio_k_cp_gas);
         
+
+        if params.debug 
+            fprintf(' m_dot_region0_Mg: %.3e \n', m_dot_region0_Mg);
+            fprintf(' m_dot_region0_CO: %.3e \n', m_dot_region0_CO);
+
+            fprintf(' m_dot_region0_total: %.3e \n', m_dot_region0_total);
+            fprintf(' m_dot_region1_Mg: %.3e \n', m_dot_region1_Mg);
+            fprintf(' m_dot_region1_CO: %.3e \n', m_dot_region1_CO);
+            fprintf(' m_dot_region1_MgO: %.3e \n', m_dot_region1_MgO);
+            fprintf(' m_dot_region1_CO2: %.3e \n', m_dot_region1_CO2);
+            fprintf(' m_dot_region1_total: %.3e \n', m_dot_region0_Mg);
+            fprintf(' m_dot_region2_CO2: %.3e \n', m_dot_region2_CO2);
+            fprintf(' m_dot_region2_Mg: %.3e \n', m_dot_region2_Mg);
+            fprintf(' m_dot_region2_MgO: %.3e \n', m_dot_region2_MgO);
+            fprintf(' m_dot_region2_CO: %.3e \n', m_dot_region2_CO);
+            fprintf(' m_dot_region2_total: %.3e \n', m_dot_region2_total);
+            fprintf(' Pe_m_region0: %.3e \n', Pe_m_region0);
+            fprintf(' Pe_m_region1: %.3e \n', Pe_m_region1);
+            fprintf(' Pe_m_region2: %.3e \n', Pe_m_region2);
+            fprintf(' Pe_cp_region0: %.3e \n', Pe_cp_region0);
+            fprintf(' Pe_cp_region1: %.3e \n', Pe_cp_region1);
+            fprintf(' Pe_cp_region2: %.3e \n', Pe_cp_region2);
+
+
+        end
         % 记录有效远场边界索引
         effective_boundary_idx = n_pts;
         T_amb_nd = T_amb / T_c;  % 无量纲环境温度
@@ -2230,8 +2288,8 @@ end
         exp_arg_T = Pe_cp_region1 * (1/r_p_nd - 1/r_f_nd);
         exp_term_T = exp(exp_arg_T) - 1;
         T_flame_1 = coeffs_1.Y_T_surf + (coeffs_1.Y_T_surf + coeffs_1.m_dot_B1_cp_ratio) * exp_term_T;
-        fprintf('  T_flame_1: %.3e \n', T_flame_1*T_c);
-        fprintf('  T_flame: %.3e \n', coeffs_2.Y_T_flame*T_c);
+        %fprintf('  T_flame_1: %.3e \n', T_flame_1*T_c);
+        %fprintf('  T_flame: %.3e \n', coeffs_2.Y_T_flame*T_c);
 
 
         % 截断到有效远场边界

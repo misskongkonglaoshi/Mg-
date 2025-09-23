@@ -1,6 +1,6 @@
 % Mg颗粒燃烧仿真主程序
 % 分阶段模拟Mg颗粒在CO2环境中的加热、熔融和反应过程
-
+7
 % 清理工作空间
 clear;
 clc;
@@ -26,7 +26,7 @@ fprintf('仿真完成！\n');
 %if ~exist('results', 'dir')
 %    mkdir('results'); 
 %end
-%save('results/simulation_results.mat', 'results');
+%save('results/simulation_results.mat', 'results'); 
 % 使用Visualization类的专用方法导出CSV，而不是直接转换结构体
 %Visualization.exportToCSV(results, 'results/simulation_results.csv');
 % writetable(struct2table(results), 'results/simulation_results.csv');

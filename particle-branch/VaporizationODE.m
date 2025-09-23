@@ -231,7 +231,8 @@ classdef VaporizationODE < handle
             dydt(3) = rate_info.dmdt_c;      % C质量变化率
            
             if dydt(1) < 1e-7
-                %stop;
+                fprintf('t=%.4f s Mg质量变化率: %.3e kg/s\n', t, dydt(1));
+                stop;
             end
             % 核心半径变化率
             rho_mg = obj.params.materials.Mg.density_low;
